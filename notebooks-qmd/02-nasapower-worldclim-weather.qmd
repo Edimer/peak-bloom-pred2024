@@ -2,7 +2,7 @@
 title: "International Cherry Blossom Prediction Competition"
 subtitle: "Climate data extraction with NASA POWER and WorldClim"
 author: "Edimer David Jaramillo"
-date: "r lubridate::now()"
+date: "`r lubridate::now()`"
 lang: en-US
 format:
   html:
