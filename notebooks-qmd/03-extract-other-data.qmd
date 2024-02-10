@@ -1,0 +1,805 @@
+---
+title: "International Cherry Blossom Prediction Competition"
+subtitle: "Supplementary data extraction"
+author: "Edimer David Jaramillo"
+date: "`r lubridate::now()`"
+lang: en-US
+format:
+  html:
+    page-layout: article
+    toc: true
+    code-fold: true
+    df-print: paged
+    toc-location: left
+    number-depth: 4
+    theme: yeti
+    code-copy: true
+    highlight-style: github
+    embed-resources: true
+    code-tools:
+      source: true    
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE, 
+                      message = FALSE,
+                      fig.align = 'center')
+```
+
+# Libraries
+
+```{r}
+library(tidyverse)
+library(geodata)
+library(fs)
+
+path_export <- "../external-data/other/"
+```
+
+# Coordinates
+
+```{r}
+# Coordinates from csv
+coord_japan <- read_csv("../data/japan.csv") |>
+  distinct(lat, long)
+
+coord_kyoto <- read_csv("../data/kyoto.csv") |>
+  distinct(lat, long)
+
+coord_liestal <- read_csv("../data/liestal.csv") |>
+  distinct(lat, long)
+
+coord_vancouver <- read_csv("../data/vancouver.csv") |>
+  distinct(lat, long)
+
+coord_washingtondc <- read_csv("../data/washingtondc.csv") |>
+  distinct(lat, long)
+
+coord_meteoswiss <- read_csv("../data/meteoswiss.csv") |>
+  distinct(lat, long)
+
+coord_southk <- read_csv("../data/south_korea.csv") |>
+  distinct(lat, long)
+
+# Coordinates New York ----
+coord_newyork <-
+  data.frame(long = -73.99809,
+             lat = 40.73040)
+```
+
+# Other data
+
+- Through the library [`geodata`](https://cran.r-project.org/web/packages/geodata/geodata.pdf#page=6&zoom=100,132,89) the following information is obtained:
+    - **Cropland:** Cropland data (*cropland*). This data is derived from [ESA WorldCover.](https://esa-worldcover.org/en)
+    - **Footprint:** "The 'human footprint' is an estimate of direct and indirect human pressures on the environment. Human pressure is measured using eight variables including urbanized environments, population
+density, electric power infrastructure, cropland, grasslands, roads, railways and waterways. It is expressed on a scale from 0 (low) to 50 (high footprint)." [`geodata` library.](https://cran.r-project.org/web/packages/geodata/geodata.pdf#page = 11&zoom=100,132,89) - [Scientific article 2009](https://www.nature.com/articles/sdata201667)
+    - **Land cover:** data was obtained for tree, grassland, shrub and water cover.
+- All data were obtained for a spatial resolution of 0.5 minutes (~1km2).
+
+## Cropland
+
+```{r}
+data_cropland <- 
+  cropland(source = "WorldCover",
+           path = path_export)
+
+data_cropland |> plot()
+```
+
+
+### Japan
+
+```{r}
+cropland_japan <-
+  data_cropland |>
+  extract(y = coord_japan |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_japan <-
+  coord_japan |>
+  bind_cols(cropland_japan)
+```
+
+
+### Kyoto
+
+```{r}
+cropland_kyoto <-
+  data_cropland |>
+  extract(y = coord_kyoto |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_kyoto <-
+  coord_kyoto |>
+  bind_cols(cropland_kyoto)
+```
+
+### Switzerland
+
+```{r}
+cropland_liestal <-
+  data_cropland |>
+  extract(y = coord_liestal |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+cropland_meteoswiss <-
+  data_cropland |>
+  extract(y = coord_meteoswiss |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_liestal <-
+  coord_liestal |>
+  bind_cols(cropland_liestal)
+
+df_cropland_meteoswiss <-
+  coord_meteoswiss |>
+  bind_cols(cropland_meteoswiss)
+```
+
+### Canada
+
+```{r}
+cropland_vancouver <-
+  data_cropland |>
+  extract(y = coord_vancouver |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_vancouver <-
+  coord_vancouver |>
+  bind_cols(cropland_vancouver)
+```
+
+### USA
+
+```{r}
+cropland_newyork <-
+  data_cropland  |>
+  extract(y = coord_newyork |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+cropland_washingtondc <-
+  data_cropland  |>
+  extract(y = coord_washingtondc |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_newyork <-
+  coord_newyork |>
+  bind_cols(cropland_newyork)
+
+df_cropland_washingtondc <-
+  coord_washingtondc |>
+  bind_cols(cropland_washingtondc)
+```
+
+### South Korea
+
+```{r}
+cropland_southk <-
+  data_cropland |>
+  extract(y = coord_southk |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_southk <-
+  coord_southk |>
+  bind_cols(cropland_southk)
+```
+
+## Footprint
+
+- Los datos están disponibles para dos años: 1993 y 2009 
+
+```{r}
+footprint_93 <- footprint(year = 1993, path = path_export)
+footprint_09 <- footprint(year = 2009, path = path_export)
+footprint_full <- c(footprint_93, footprint_09)
+```
+
+
+### Japan
+
+```{r}
+footprint_japan <-
+  footprint_full |>
+  extract(y = coord_japan |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_japan <-
+  coord_japan |>
+  bind_cols(footprint_japan)
+```
+
+
+### Kyoto
+
+```{r}
+footprint_kyoto <-
+  footprint_full |>
+  extract(y = coord_kyoto |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_kyoto <-
+  coord_kyoto |>
+  bind_cols(footprint_kyoto)
+```
+
+### Switzerland
+
+```{r}
+footprint_liestal <-
+  footprint_full |>
+  extract(y = coord_liestal |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+footprint_meteoswiss <-
+  footprint_full |>
+  extract(y = coord_meteoswiss |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_liestal <-
+  coord_liestal |>
+  bind_cols(footprint_liestal)
+
+df_footprint_meteoswiss <-
+  coord_meteoswiss |>
+  bind_cols(footprint_meteoswiss)
+```
+
+### Canada
+
+```{r}
+footprint_vancouver <-
+  footprint_full |>
+  extract(y = coord_vancouver |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_vancouver <-
+  coord_vancouver |>
+  bind_cols(footprint_vancouver)
+```
+
+### USA
+
+```{r}
+footprint_newyork <-
+  footprint_full  |>
+  extract(y = coord_newyork |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+footprint_washingtondc <-
+  footprint_full  |>
+  extract(y = coord_washingtondc |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_newyork <-
+  coord_newyork |>
+  bind_cols(footprint_newyork)
+
+df_footprint_washingtondc <-
+  coord_washingtondc |>
+  bind_cols(footprint_washingtondc)
+```
+
+### South Korea
+
+```{r}
+footprint_southk <-
+  footprint_full |>
+  extract(y = coord_southk |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_southk <-
+  coord_southk |>
+  bind_cols(footprint_southk)
+```
+
+## Landcover
+
+```{r}
+var_landcover <- c("trees", "grassland", "shrubs",  "water")
+list_landcover <- list()
+
+for (i in 1:length(var_landcover)) {
+  list_landcover[[i]] = landcover(var = var_landcover[i],
+                                  path = path_export)
+}
+
+data_landcover <-
+  c(list_landcover[[1]], list_landcover[[2]],
+    list_landcover[[3]], list_landcover[[4]])
+```
+
+
+### Japan
+
+```{r}
+landcover_japan <-
+  data_landcover |>
+  extract(y = coord_japan |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_japan <-
+  coord_japan |>
+  bind_cols(landcover_japan)
+```
+
+
+### Kyoto
+
+```{r}
+landcover_kyoto <-
+  data_landcover |>
+  extract(y = coord_kyoto |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_kyoto <-
+  coord_kyoto |>
+  bind_cols(landcover_kyoto)
+```
+
+### Switzerland
+
+```{r}
+landcover_liestal <-
+  data_landcover |>
+  extract(y = coord_liestal |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+landcover_meteoswiss <-
+  data_landcover |>
+  extract(y = coord_meteoswiss |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_liestal <-
+  coord_liestal |>
+  bind_cols(landcover_liestal)
+
+df_landcover_meteoswiss <-
+  coord_meteoswiss |>
+  bind_cols(landcover_meteoswiss)
+```
+
+### Canada
+
+```{r}
+landcover_vancouver <-
+  data_landcover |>
+  extract(y = coord_vancouver |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_vancouver <-
+  coord_vancouver |>
+  bind_cols(landcover_vancouver)
+```
+
+### USA
+
+```{r}
+landcover_newyork <-
+  data_landcover  |>
+  extract(y = coord_newyork |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+landcover_washingtondc <-
+  data_landcover  |>
+  extract(y = coord_washingtondc |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_newyork <-
+  coord_newyork |>
+  bind_cols(landcover_newyork)
+
+df_landcover_washingtondc <-
+  coord_washingtondc |>
+  bind_cols(landcover_washingtondc)
+```
+
+### South Korea
+
+```{r}
+landcover_southk <-
+  data_landcover |>
+  extract(y = coord_southk |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_southk <-
+  coord_southk |>
+  bind_cols(landcover_southk)
+```
+
+## Complete data
+
+### Japan
+
+```{r}
+df_other_japan <-
+  df_cropland_japan |>
+  left_join(df_footprint_japan, by = c("long", "lat")) |>
+  left_join(df_landcover_japan, by = c("long", "lat"))
+
+write_csv(df_other_japan, "../external-data/other/other_japan.csv")
+```
+
+### Kyoto
+
+```{r}
+df_other_kyoto <-
+  df_cropland_kyoto |>
+  left_join(df_footprint_kyoto, by = c("long", "lat")) |>
+  left_join(df_landcover_kyoto, by = c("long", "lat"))
+
+write_csv(df_other_kyoto, "../external-data/other/other_kyoto.csv")
+```
+
+
+### Switzerland
+
+```{r}
+df_other_liestal <-
+  df_cropland_liestal |>
+  left_join(df_footprint_liestal, by = c("long", "lat")) |>
+  left_join(df_landcover_liestal, by = c("long", "lat"))
+
+df_other_meteoswiss <-
+  df_cropland_meteoswiss |>
+  left_join(df_footprint_meteoswiss, by = c("long", "lat")) |>
+  left_join(df_landcover_meteoswiss, by = c("long", "lat"))
+
+write_csv(df_other_liestal, "../external-data/other/other_liestal.csv")
+
+write_csv(df_other_meteoswiss, "../external-data/other/other_meteoswiss.csv")
+```
+
+### Canada
+
+```{r}
+df_other_vancouver <-
+  df_cropland_vancouver |>
+  left_join(df_footprint_vancouver, by = c("long", "lat")) |>
+  left_join(df_landcover_vancouver, by = c("long", "lat"))
+
+write_csv(df_other_vancouver, "../external-data/other/other_vancouver.csv")
+```
+
+
+### USA
+
+```{r}
+df_other_newyork <-
+  df_cropland_newyork |>
+  left_join(df_footprint_newyork, by = c("long", "lat")) |>
+  left_join(df_landcover_newyork, by = c("long", "lat"))
+
+df_other_washingtondc <-
+  df_cropland_washingtondc|>
+  left_join(df_footprint_washingtondc, by = c("long", "lat")) |>
+  left_join(df_landcover_washingtondc, by = c("long", "lat"))
+
+write_csv(df_other_newyork, "../external-data/other/other_newyork.csv")
+
+write_csv(df_other_washingtondc, "../external-data/other/other_washingtondc.csv")
+```
+
+### South Korea
+
+```{r}
+df_other_southk <-
+  df_cropland_southk |>
+  left_join(df_footprint_southk, by = c("long", "lat")) |>
+  left_join(df_landcover_southk, by = c("long", "lat"))
+
+write_csv(df_other_southk, "../external-data/other/other_southk.csv")
+```
+
+# SoilGrids
+
+```{r}
+pattern_japan <- "japan"
+pattern_switzerland <- "switzerland"
+pattern_canada <- "canada"
+pattern_usa <- "usa"
+pattern_southk <- "southK"
+
+path_sg <- "../external-data/soilgrids/"
+files_sg <- path_sg |> 
+  dir_ls()
+```
+
+
+## Japan
+
+```{r}
+list_sg <- list()
+files_japan <-
+  files_sg[str_detect(files_sg, pattern = pattern_japan)]
+
+for (i in 1:length(files_japan)) {
+  list_sg[[i]] = rast(x = files_japan[i])
+}
+
+tif_japan <-
+  c(
+    list_sg[[1]],
+    list_sg[[2]],
+    list_sg[[3]],
+    list_sg[[4]],
+    list_sg[[5]],
+    list_sg[[6]],
+    list_sg[[7]],
+    list_sg[[8]],
+    list_sg[[9]],
+    list_sg[[10]],
+    list_sg[[11]]
+  )
+
+sg_japan <-
+  tif_japan |>
+  extract(y = coord_japan |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_japan <-
+  coord_japan |>
+  bind_cols(sg_japan)
+
+names(df_sg_japan) <-
+  names(df_sg_japan) |>
+  str_replace_all(glue::glue("_{pattern_japan}"), "")
+
+write_csv(df_sg_japan, "../external-data/soilgrids/csv/sg_japan.csv")
+```
+
+## Kyoto
+
+```{r}
+sg_kyoto <-
+  tif_japan |>
+  extract(y = coord_kyoto |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_kyoto <-
+  coord_kyoto |>
+  bind_cols(sg_kyoto)
+
+names(df_sg_kyoto) <-
+  names(df_sg_kyoto) |>
+  str_replace_all(glue::glue("_{pattern_japan}"), "")
+
+write_csv(df_sg_kyoto, "../external-data/soilgrids/csv/sg_kyoto.csv")
+```
+
+## Switzerland
+
+```{r}
+list_sg <- list()
+files_switzerland <-
+  files_sg[str_detect(files_sg, pattern = pattern_switzerland)]
+
+for (i in 1:length(files_switzerland)) {
+  list_sg[[i]] = rast(x = files_switzerland[i])
+}
+
+tif_switzerland <-
+  c(
+    list_sg[[1]],
+    list_sg[[2]],
+    list_sg[[3]],
+    list_sg[[4]],
+    list_sg[[5]],
+    list_sg[[6]],
+    list_sg[[7]],
+    list_sg[[8]],
+    list_sg[[9]],
+    list_sg[[10]],
+    list_sg[[11]]
+  )
+
+# Liestal
+sg_liestal <-
+  tif_switzerland |>
+  extract(y = coord_liestal |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_liestal <-
+  coord_liestal |>
+  bind_cols(sg_liestal)
+
+names(df_sg_liestal) <-
+  names(df_sg_liestal) |>
+  str_replace_all(glue::glue("_{pattern_switzerland}"), "")
+
+write_csv(df_sg_liestal, "../external-data/soilgrids/csv/sg_liestal.csv")
+
+# Meteoswiss
+sg_meteoswiss <-
+  tif_switzerland |>
+  extract(y = coord_meteoswiss |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_meteoswiss <-
+  coord_meteoswiss |>
+  bind_cols(sg_meteoswiss)
+
+names(df_sg_meteoswiss) <-
+  names(df_sg_meteoswiss) |>
+  str_replace_all(glue::glue("_{pattern_switzerland}"), "")
+
+write_csv(df_sg_meteoswiss, "../external-data/soilgrids/csv/sg_meteoswiss.csv")
+```
+
+## Canada
+
+```{r}
+list_sg <- list()
+files_canada <-
+  files_sg[str_detect(files_sg, pattern = pattern_canada)]
+
+for (i in 1:length(files_canada)) {
+  list_sg[[i]] = rast(x = files_canada[i])
+}
+
+tif_canada <-
+  c(
+    list_sg[[1]],
+    list_sg[[2]],
+    list_sg[[3]],
+    list_sg[[4]],
+    list_sg[[5]],
+    list_sg[[6]],
+    list_sg[[7]],
+    list_sg[[8]],
+    list_sg[[9]],
+    list_sg[[10]],
+    list_sg[[11]]
+  )
+
+sg_vancouver <-
+  tif_canada |>
+  extract(y = coord_vancouver |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_vancouver <-
+  coord_vancouver |>
+  bind_cols(sg_vancouver)
+
+names(df_sg_vancouver) <-
+  names(df_sg_vancouver) |>
+  str_replace_all(glue::glue("_{pattern_canada}"), "")
+
+write_csv(df_sg_vancouver, "../external-data/soilgrids/csv/sg_vancouver.csv")
+```
+
+## USA
+
+```{r}
+list_sg <- list()
+files_usa <-
+  files_sg[str_detect(files_sg, pattern = pattern_usa)]
+
+for (i in 1:length(files_usa)) {
+  list_sg[[i]] = rast(x = files_usa[i])
+}
+
+tif_usa <-
+  c(
+    list_sg[[1]],
+    list_sg[[2]],
+    list_sg[[3]],
+    list_sg[[4]],
+    list_sg[[5]],
+    list_sg[[6]],
+    list_sg[[7]],
+    list_sg[[8]],
+    list_sg[[9]],
+    list_sg[[10]],
+    list_sg[[11]]
+  )
+
+# Liestal
+sg_newyork <-
+  tif_usa |>
+  extract(y = coord_newyork |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_newyork <-
+  coord_newyork |>
+  bind_cols(sg_newyork)
+
+names(df_sg_newyork) <-
+  names(df_sg_newyork) |>
+  str_replace_all(glue::glue("_{pattern_usa}"), "")
+
+write_csv(df_sg_newyork, "../external-data/soilgrids/csv/sg_newyork.csv")
+
+# Meteoswiss
+sg_washingtondc <-
+  tif_usa |>
+  extract(y = coord_washingtondc |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_washingtondc <-
+  coord_washingtondc |>
+  bind_cols(sg_washingtondc)
+
+names(df_sg_washingtondc) <-
+  names(df_sg_washingtondc) |>
+  str_replace_all(glue::glue("_{pattern_usa}"), "")
+
+write_csv(df_sg_washingtondc, "../external-data/soilgrids/csv/sg_washingtondc.csv")
+```
+
+## South Korea
+
+```{r}
+list_sg <- list()
+files_southk <-
+  files_sg[str_detect(files_sg, pattern = pattern_southk)]
+
+for (i in 1:length(files_southk)) {
+  list_sg[[i]] = rast(x = files_southk[i])
+}
+
+tif_southk <-
+  c(
+    list_sg[[1]],
+    list_sg[[2]],
+    list_sg[[3]],
+    list_sg[[4]],
+    list_sg[[5]],
+    list_sg[[6]],
+    list_sg[[7]],
+    list_sg[[8]],
+    list_sg[[9]],
+    list_sg[[10]],
+    list_sg[[11]]
+  )
+
+sg_southk <-
+  tif_southk |>
+  extract(y = coord_southk |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_southk <-
+  coord_southk |>
+  bind_cols(sg_southk)
+
+names(df_sg_southk) <-
+  names(df_sg_southk) |>
+  str_replace_all(glue::glue("_{pattern_southk}"), "")
+
+write_csv(df_sg_southk, "../external-data/soilgrids/csv/sg_southk.csv")
+```
