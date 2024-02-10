@@ -1,0 +1,124 @@
+---
+title: "International Cherry Blossom Prediction Competition"
+subtitle: "Data integration"
+author: "Edimer David Jaramillo"
+date: "`r lubridate::now()`"
+lang: en-US
+format:
+  html:
+    page-layout: article
+    toc: true
+    code-fold: true
+    df-print: paged
+    toc-location: left
+    number-depth: 4
+    theme: yeti
+    code-copy: true
+    highlight-style: github
+    embed-resources: true
+    code-tools:
+      source: true    
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE, 
+                      message = FALSE,
+                      fig.align = 'center')
+```
+
+# Libraries and setup
+
+```{r}
+library(tidyverse)
+library(fs)
+library(arrow)
+
+theme_set(theme_bw() + theme(legend.position = "top"))
+
+pattern_japan <- "japan"
+pattern_kyoto <- "kyoto"
+pattern_liestal <- "liestal"
+pattern_meteoswiss <- "meteoswiss"
+pattern_vancouver <- "vancouver"
+pattern_usa_ny <- "newyork"
+pattern_usa_wdc <- "washingtondc"
+pattern_southk <- "south"
+
+initial_files <- dir_ls("../data/")
+
+files_cherry <-
+  initial_files[!str_detect(initial_files, "USA-NPN|.md")]
+
+files_soilgrids <- dir_ls("../external-data/soilgrids/csv/")
+
+files_other <- dir_ls("../external-data/other/", regexp = ".csv")
+
+files_bioclim <- dir_ls("../external-data/weather/", regexp = "bioclim")
+
+files_weather <- dir_ls("../external-data/weather/", regexp = ".parquet")
+```
+
+# Full data
+
+- To the initial data provided for the competition I add by coordinates (longitude and latitude) the SoilGrids information, the complementary information (*other*) and the bioclimatic variables. Duplicate records are eliminated in this final table. The final table (`df_full`) is exported for further analysis. The total records in this table is 15160.
+- I keep the weather data in a separate database (`df_weather`). There are more than five million records and they have different temporalities.
+- I export the two files `df_full` and `df_weather` in *.parquet* format for further analysis.
+
+```{r}
+df_initial_cherry <-
+  files_cherry |>
+  map(.f = ~ read_csv(.x)) |>
+  list_rbind()
+
+df_soilgrids <-
+  files_soilgrids |>
+  map(.f = ~ read_csv(.x)) |>
+  list_rbind()
+
+df_other <-
+  files_other |>
+  map(.f = ~ read_csv(.x)) |>
+  list_rbind()
+
+df_bioclim <-
+  files_bioclim |>
+  map(.f = ~ read_csv(.x)) |>
+  list_rbind()
+
+df_full <-
+  df_initial_cherry |>
+  left_join(df_soilgrids, by = c("long", "lat")) |>
+  left_join(df_other, by = c("long", "lat")) |>
+  left_join(df_bioclim, by = c("long", "lat")) |> 
+  distinct_all()
+
+write_parquet(df_full, "../external-data/df_full.parquet")
+
+df_full |> head()
+```
+
+# Data weather
+
+```{r}
+df_weather <-
+  files_weather |>
+  map(
+    .f = function(x = .x) {
+      res =
+        read_parquet(x)
+      return(res)
+    }
+  ) |>
+  list_rbind() |> 
+  rename(long = LON,
+         lat = LAT)
+
+write_parquet(df_weather, "../external-data/df_weather.parquet")
+
+df_weather |> head()
+```
+
