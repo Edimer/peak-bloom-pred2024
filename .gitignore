@@ -7,4 +7,10 @@
 external-data/weather/wc2.1_country/CAN_wc2.1_30s_bio.tif
 external-data/weather/wc2.1_country/JPN_wc2.1_30s_bio.tif
 external-data/weather/wc2.1_tiles/
-external-data/other
+external-data/other/wildareas-v3-1993-human-footprint_geo.tif
+external-data/other/wildareas-v3-2009-human-footprint_geo.tif
+external-data/other/WorldCover_cropland_30s.tif
+external-data/other/WorldCover_grassland_30s.tif
+external-data/other/WorldCover_shrubs_30s.tif
+external-data/other/WorldCover_trees_30s.tif
+external-data/other/WorldCover_water_30s.tif
