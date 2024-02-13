@@ -30,12 +30,15 @@ knitr::opts_chunk$set(echo = TRUE,
                       fig.align = 'center')
 ```
 
-# Libraries
+# Libraries and setup
 
 ```{r}
 library(tidyverse)
 library(geodata)
 library(fs)
+library(meteor)
+
+source("../source/r/extractPhotoperiod.R")
 
 path_export <- "../external-data/other/"
 ```
@@ -90,6 +93,7 @@ data_cropland <-
 data_cropland |> plot()
 ```
 
+::: {.panel-tabset}
 
 ### Japan
 
@@ -196,9 +200,11 @@ df_cropland_southk <-
   bind_cols(cropland_southk)
 ```
 
+:::
+
 ## Footprint
 
-- Los datos están disponibles para dos años: 1993 y 2009 
+- Data is available for two years: 1993 and 2009
 
 ```{r}
 footprint_93 <- footprint(year = 1993, path = path_export)
@@ -206,6 +212,7 @@ footprint_09 <- footprint(year = 2009, path = path_export)
 footprint_full <- c(footprint_93, footprint_09)
 ```
 
+::: {.panel-tabset}
 
 ### Japan
 
@@ -312,6 +319,8 @@ df_footprint_southk <-
   bind_cols(footprint_southk)
 ```
 
+:::
+
 ## Landcover
 
 ```{r}
@@ -328,6 +337,7 @@ data_landcover <-
     list_landcover[[3]], list_landcover[[4]])
 ```
 
+::: {.panel-tabset}
 
 ### Japan
 
@@ -434,7 +444,11 @@ df_landcover_southk <-
   bind_cols(landcover_southk)
 ```
 
+:::
+
 ## Complete data
+
+::: {.panel-tabset}
 
 ### Japan
 
@@ -518,6 +532,8 @@ df_other_southk <-
 write_csv(df_other_southk, "../external-data/other/other_southk.csv")
 ```
 
+:::
+
 # SoilGrids
 
 ```{r}
@@ -532,6 +548,7 @@ files_sg <- path_sg |>
   dir_ls()
 ```
 
+::: {.panel-tabset}
 
 ## Japan
 
@@ -803,3 +820,96 @@ names(df_sg_southk) <-
 
 write_csv(df_sg_southk, "../external-data/soilgrids/csv/sg_southk.csv")
 ```
+
+:::
+
+# Photoperiod
+
+- The photoperiod is obtained with the library [`meteor`](https://cran.r-project.org/web/packages/meteor/meteor.pdf) using the `photoperiod()` function, which receives as parameters Enter the date and latitude. In this library the approach proposed by [Forsythe et al., 1995.](https://www.sciencedirect.com/science/article/abs/pii/030438009400034F) is used.
+- To determine the photoperiod extraction ranges I use the minimum and maximum values of the flowering date. I have 1 year remaining from the minimum date to have information prior to flowering.
+
+::: {.panel-tabset}
+
+## Japan
+
+```{r}
+photoperiod_japan <-
+  extractPhotoperiod(data = read_csv("../data/japan.csv"))
+
+arrow::write_parquet(photoperiod_japan, 
+                     "../external-data/other-photoperiod/photoperiod_japan.parquet")
+```
+
+## Kyoto
+
+```{r}
+photoperiod_kyoto <-
+  extractPhotoperiod(data = read_csv("../data/kyoto.csv"))
+
+arrow::write_parquet(photoperiod_kyoto, 
+                     "../external-data/other-photoperiod/photoperiod_kyoto.parquet")
+```
+
+## Switzerland
+
+```{r}
+photoperiod_liestal <-
+  extractPhotoperiod(data = read_csv("../data/liestal.csv"))
+
+arrow::write_parquet(photoperiod_liestal, 
+                     "../external-data/other-photoperiod/photoperiod_liestal.parquet")
+
+photoperiod_meteoswiss <-
+  extractPhotoperiod(data = read_csv("../data/meteoswiss.csv"))
+
+arrow::write_parquet(photoperiod_meteoswiss, 
+                     "../external-data/other-photoperiod/photoperiod_meteoswiss.parquet")
+```
+
+## Canada
+
+```{r}
+photoperiod_vancouver <-
+  extractPhotoperiod(data = read_csv("../data/vancouver.csv"))
+
+arrow::write_parquet(photoperiod_vancouver, 
+                     "../external-data/other-photoperiod/photoperiod_vancouver.parquet")
+```
+
+## USA
+
+```{r}
+# Washington DC
+photoperiod_washingtondc <-
+  extractPhotoperiod(data = read_csv("../data/washingtondc.csv"))
+
+arrow::write_parquet(photoperiod_washingtondc, 
+                     "../external-data/other-photoperiod/photoperiod_washingtondc.parquet")
+
+# New York
+range_newyork <- 
+  seq(from = ymd("2000-01-01"),
+      to = ymd("2023-12-31"),
+      by = 1)
+
+photoperiod_newyork <-
+  data.frame(
+    photoperiod = photoperiod(x = range_newyork, latitude = coord_newyork$lat)
+  )
+
+arrow::write_parquet(photoperiod_newyork, 
+                     "../external-data/other-photoperiod/photoperiod_newyork.parquet")
+```
+
+## South Korea
+
+```{r}
+photoperiod_southk <-
+  extractPhotoperiod(data = read_csv("../data/south_korea.csv"))
+
+arrow::write_parquet(photoperiod_southk, 
+                     "../external-data/other-photoperiod/photoperiod_southk.parquet")
+```
+
+
+:::

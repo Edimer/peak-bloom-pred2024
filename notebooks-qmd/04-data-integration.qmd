@@ -60,13 +60,16 @@ files_other <- dir_ls("../external-data/other/", regexp = ".csv")
 files_bioclim <- dir_ls("../external-data/weather/", regexp = "bioclim")
 
 files_weather <- dir_ls("../external-data/weather/", regexp = ".parquet")
+
+files_photoperiod <- dir_ls("../external-data/other-photoperiod/", regexp = ".parquet")
 ```
 
 # Full data
 
 - To the initial data provided for the competition I add by coordinates (longitude and latitude) the SoilGrids information, the complementary information (*other*) and the bioclimatic variables. Duplicate records are eliminated in this final table. The final table (`df_full`) is exported for further analysis. The total records in this table is 15160.
 - I keep the weather data in a separate database (`df_weather`). There are more than five million records and they have different temporalities.
-- I export the two files `df_full` and `df_weather` in *.parquet* format for further analysis.
+- I keep photoperiod information in a separate database (`df_photoperiod`).
+- I export the three files`df_full`, `df_weather` and `df_photoperiod` in *.parquet* format for further analysis.
 
 ```{r}
 df_initial_cherry <-
@@ -122,3 +125,21 @@ write_parquet(df_weather, "../external-data/df_weather.parquet")
 df_weather |> head()
 ```
 
+# Data photoperiod
+
+```{r}
+df_photoperiod <-
+  files_photoperiod |>
+  map(
+    .f = function(x = .x) {
+      res =
+        read_parquet(x)
+      return(res)
+    }
+  ) |>
+  list_rbind()
+
+write_parquet(df_photoperiod, "../external-data/df_photoperiod.parquet")
+
+df_photoperiod |> head()
+```
