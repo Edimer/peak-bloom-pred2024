@@ -87,9 +87,18 @@ df_other <-
   map(.f = ~ read_csv(.x)) |>
   list_rbind()
 
+
+names_bioclim <- str_c("bio", 1:19)
 df_bioclim <-
   files_bioclim |>
-  map(.f = ~ read_csv(.x)) |>
+  map(
+    .f = function(x = .x) {
+      res =
+        read_csv(x) |>
+        set_names(c("lat", "long", names_bioclim))
+      return(res)
+    }
+  ) |>
   list_rbind()
 
 df_full <-
