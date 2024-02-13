@@ -1,2 +1,3 @@
-lat,long,bdod_0-5cm_mean,cec_0-5cm_mean,cfvo_0-5cm_mean,clay_0-5cm_mean,nitrogen_0-5cm_mean,ocd_0-5cm_mean,ocs_0-30cm_mean,phh2o_0-5cm_mean,sand_0-5cm_mean,silt_0-5cm_mean,soc_0-5cm_mean
-35.0119831,135.6761135,108,270,91,286,515,575,68,54,380,334,738
+version https://git-lfs.github.com/spec/v1
+oid sha256:f92a01b21d706b8335883ffd191ff4b45f959c37e271396f016bbbe48b57dfe9
+size 251

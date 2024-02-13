@@ -72,6 +72,18 @@ coord_southk <- read_csv("../data/south_korea.csv") |>
 coord_newyork <-
   data.frame(long = -73.99809,
              lat = 40.73040)
+
+# Coordinates USA National Phenology Network
+coord_npn1 <- read_csv("../data/USA-NPN_individual_phenometrics_data.csv") |> 
+  select(lat = Latitude, long = Longitude) |> 
+  distinct_all()
+
+coord_npn2 <- read_csv("../data/USA-NPN_status_intensity_observations_data.csv") |> 
+  select(lat = Latitude, long = Longitude) |> 
+  distinct_all()
+
+coord_npn <- bind_rows(coord_npn1, coord_npn2) |> 
+  distinct_all()
 ```
 
 # Other data
@@ -184,6 +196,17 @@ df_cropland_newyork <-
 df_cropland_washingtondc <-
   coord_washingtondc |>
   bind_cols(cropland_washingtondc)
+
+# NPN
+cropland_npn <-
+  data_cropland  |>
+  extract(y = coord_npn |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_cropland_npn <-
+  coord_npn |>
+  bind_cols(cropland_npn)
 ```
 
 ### South Korea
@@ -303,6 +326,17 @@ df_footprint_newyork <-
 df_footprint_washingtondc <-
   coord_washingtondc |>
   bind_cols(footprint_washingtondc)
+
+# NPN
+footprint_npn <-
+  footprint_full  |>
+  extract(y = coord_npn |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_footprint_npn <-
+  coord_npn |>
+  bind_cols(footprint_npn)
 ```
 
 ### South Korea
@@ -428,6 +462,17 @@ df_landcover_newyork <-
 df_landcover_washingtondc <-
   coord_washingtondc |>
   bind_cols(landcover_washingtondc)
+
+# NPN
+landcover_npn <-
+  data_landcover  |>
+  extract(y = coord_npn |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_landcover_npn <-
+  coord_npn |>
+  bind_cols(landcover_npn)
 ```
 
 ### South Korea
@@ -516,9 +561,16 @@ df_other_washingtondc <-
   left_join(df_footprint_washingtondc, by = c("long", "lat")) |>
   left_join(df_landcover_washingtondc, by = c("long", "lat"))
 
+df_other_npn <-
+  df_cropland_npn |>
+  left_join(df_footprint_npn, by = c("long", "lat")) |>
+  left_join(df_landcover_npn, by = c("long", "lat"))
+
 write_csv(df_other_newyork, "../external-data/other/other_newyork.csv")
 
 write_csv(df_other_washingtondc, "../external-data/other/other_washingtondc.csv")
+
+write_csv(df_other_npn, "../external-data/other/other_npn.csv")
 ```
 
 ### South Korea
@@ -743,7 +795,7 @@ tif_usa <-
     list_sg[[11]]
   )
 
-# Liestal
+# New York
 sg_newyork <-
   tif_usa |>
   extract(y = coord_newyork |> relocate(long, lat),
@@ -760,7 +812,7 @@ names(df_sg_newyork) <-
 
 write_csv(df_sg_newyork, "../external-data/soilgrids/csv/sg_newyork.csv")
 
-# Meteoswiss
+# Washington DC
 sg_washingtondc <-
   tif_usa |>
   extract(y = coord_washingtondc |> relocate(long, lat),
@@ -776,6 +828,23 @@ names(df_sg_washingtondc) <-
   str_replace_all(glue::glue("_{pattern_usa}"), "")
 
 write_csv(df_sg_washingtondc, "../external-data/soilgrids/csv/sg_washingtondc.csv")
+
+# NPN
+sg_npn <-
+  tif_usa |>
+  extract(y = coord_npn |> relocate(long, lat),
+          xy = FALSE) |>
+  select(-ID)
+
+df_sg_npn <-
+  coord_npn |>
+  bind_cols(sg_npn)
+
+names(df_sg_npn) <-
+  names(df_sg_npn) |>
+  str_replace_all(glue::glue("_{pattern_usa}"), "")
+
+write_csv(df_sg_npn, "../external-data/soilgrids/csv/sg_npn.csv")
 ```
 
 ## South Korea
@@ -899,6 +968,31 @@ photoperiod_newyork <-
 
 arrow::write_parquet(photoperiod_newyork, 
                      "../external-data/other-photoperiod/photoperiod_newyork.parquet")
+
+# NPN
+data_npn1 <- read_csv("../data/USA-NPN_individual_phenometrics_data.csv") |> 
+  mutate(Observation_Date = str_c(First_Yes_Month, "-", First_Yes_Day, "-", First_Yes_Year),
+         Observation_Date = mdy(Observation_Date)) |> 
+  select(lat = Latitude, 
+         long = Longitude,
+         bloom_date = Observation_Date) |> 
+  distinct_all()
+
+data_npn2 <- read_csv("../data/USA-NPN_status_intensity_observations_data.csv") |> 
+  mutate(Observation_Date = mdy(Observation_Date)) |> 
+  select(lat = Latitude, 
+         long = Longitude,
+         bloom_date = Observation_Date) |> 
+  distinct_all()
+
+data_npn <- bind_rows(data_npn1, data_npn2) |> 
+  distinct_all()
+
+photoperiod_npn <-
+  extractPhotoperiod(data = data_npn)
+
+arrow::write_parquet(photoperiod_npn, 
+                     "../external-data/other-photoperiod/photoperiod_npn.parquet")
 ```
 
 ## South Korea

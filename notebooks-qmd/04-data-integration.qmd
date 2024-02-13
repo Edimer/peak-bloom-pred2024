@@ -62,11 +62,40 @@ files_bioclim <- dir_ls("../external-data/weather/", regexp = "bioclim")
 files_weather <- dir_ls("../external-data/weather/", regexp = ".parquet")
 
 files_photoperiod <- dir_ls("../external-data/other-photoperiod/", regexp = ".parquet")
+
+# Data NPN
+data_npn1 <- read_csv("../data/USA-NPN_individual_phenometrics_data.csv") |> 
+  mutate(Observation_Date = str_c(First_Yes_Month, "-", First_Yes_Day, "-", First_Yes_Year),
+         Observation_Date = mdy(Observation_Date),
+         location = "NPN",
+         year = year(Observation_Date)) |> 
+  select(location,
+         lat = Latitude, 
+         long = Longitude,
+         alt = Elevation_in_Meters,
+         year,
+         bloom_date = Observation_Date,
+         bloom_doy = First_Yes_DOY)
+
+data_npn2 <- read_csv("../data/USA-NPN_status_intensity_observations_data.csv") |> 
+  mutate(Observation_Date = mdy(Observation_Date),
+         location = "NPN",
+         year = year(Observation_Date)) |>
+  select(location,
+         lat = Latitude, 
+         long = Longitude,
+         alt = Elevation_in_Meters,
+         year,
+         bloom_date = Observation_Date,
+         bloom_doy = Day_of_Year)
+
+data_npn <- bind_rows(data_npn1, data_npn2)
 ```
 
 # Full data
 
-- To the initial data provided for the competition I add by coordinates (longitude and latitude) the SoilGrids information, the complementary information (*other*) and the bioclimatic variables. Duplicate records are eliminated in this final table. The final table (`df_full`) is exported for further analysis. The total records in this table is 15160.
+- To the initial data provided for the competition I add by coordinates (longitude and latitude) the SoilGrids information, the complementary information (*other*) and the bioclimatic variables. Duplicate records are eliminated in this final table. The final table (`df_full`) is exported for further analysis. The total records in this table is 17966. **Note:** I mixed the data only for ease of handling, but I am aware that in the data provided by the *National Phenology Network* there are other types of species.
+- Data provided by the *National Phenology Network* is included in the `df_full` table.
 - I keep the weather data in a separate database (`df_weather`). There are more than five million records and they have different temporalities.
 - I keep photoperiod information in a separate database (`df_photoperiod`).
 - I export the three files`df_full`, `df_weather` and `df_photoperiod` in *.parquet* format for further analysis.
@@ -75,7 +104,8 @@ files_photoperiod <- dir_ls("../external-data/other-photoperiod/", regexp = ".pa
 df_initial_cherry <-
   files_cherry |>
   map(.f = ~ read_csv(.x)) |>
-  list_rbind()
+  list_rbind() |> 
+  bind_rows(data_npn)
 
 df_soilgrids <-
   files_soilgrids |>
@@ -152,3 +182,4 @@ write_parquet(df_photoperiod, "../external-data/df_photoperiod.parquet")
 
 df_photoperiod |> head()
 ```
+

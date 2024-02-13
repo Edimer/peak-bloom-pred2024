@@ -1,2 +1,3 @@
-lat,long,cropland,wildareas-v3-1993-human-footprint,wildareas-v3-2009-human-footprint,trees,grassland,shrubs,water
-38.8853496,-77.0386278,0,38,38,0.1525000035762787,0.40709999203681946,0,0.3465999960899353
+version https://git-lfs.github.com/spec/v1
+oid sha256:3a25da4446c98af55e459f6cb155049be84a32b003ec04289cad4915d0b6226c
+size 206
