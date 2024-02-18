@@ -1,0 +1,1602 @@
+---
+title: "International Cherry Blossom Prediction Competition"
+subtitle: "Exploratory Data Analysis 1"
+author: "Edimer David Jaramillo"
+date: "`r lubridate::now()`"
+lang: en-US
+format:
+  html:
+    page-layout: article
+    toc: true
+    code-fold: true
+    df-print: paged
+    toc-location: left
+    number-depth: 4
+    theme: yeti
+    code-copy: true
+    highlight-style: github
+    embed-resources: true
+    code-tools:
+      source: true    
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE, 
+                      message = FALSE,
+                      fig.align = 'center')
+```
+
+# Document description
+
+- En este documento se lleva a cabo análisis exploratorio de datos con las variables bioclimáticas, de suelo, coberturas terrestres y huella humana. Recordemos que las variables bioclimáticas son un consolidado de los años 1970 a 2000. Este documento tiene como finalidad comparar las fechas de floración entre países, validar relaciones que han sido reportadas en literatura (por ejemplo, la relación de temperatura con *DOY*), determinar la existencia de efectos de interacción y establecer cuáles de las variables predictoras podrían ser eventualmente candidatas para incluir en la modelación (*selección de predictores*). Podríamos decir que las variables analizadas en este documento son *"estáticas"* o *"fijas"*, ya que no tenemos temporalidad de ellas, son datos consolidados en ventanas de tiempo preestablecidas.
+- En el siguiente documento (**06-EDA2.qmd**) se muestran resultados de análisis exploratorio para variables *"dinámicas"*, me refiero a ellas como dinámicas ya que las variables climatológicas y de fotoperíodo tienen temporalidad (datos diarios) y obtuve información desde el 01 de enero de 1981 hasta el 31 de diciembre de 2023.
+
+# Libraries and setup
+
+```{r}
+library(tidyverse)
+library(arrow)
+library(splines)
+library(corrr)
+library(scales)
+library(FactoMineR)
+library(factoextra)
+library(glue)
+
+theme_set(theme_bw() + theme(legend.position = "top"))
+```
+
+# Data
+
+- Extraigo una variable de nombre `country` que tiene el país, esto lo hago con la finalidad de evaluar patrones de comportamiento por diferentes países y porque podría ser de ayuda para extrapolar a regiones donde no tenemos registros históricos de floración. Para diferenciar los datos de *NPN* para USA, los etiqueto en la variable `country` como `USA-NPN` y a los de Washington DC como `USA-WDC`.
+- En varios de los resultados de ese documento no se incluye `USA-WDC` porque sólo es una coordenada (lat=38.88535, long=-77.03863) y tampoco se muestran los resultados de `USA-NPN`, la razón es que las variables bioclimáticas no están para las coordenadas de `USA-NPN`, sin embargo, como información de clima fue suministrada por *NPN*, uso esta información para análisis exploratorio al final de este documento  y también en el próximo (**06-EDA2.qmd**).
+
+```{r}
+df_full <- read_parquet("../external-data/df_full.parquet") |> 
+  mutate(
+    country = 
+      case_when(
+        str_detect(location, "Japan") ~ "Japan",
+        str_detect(location, "kyoto") ~ "Japan",
+        str_detect(location, "liestal") ~ "Switzerland",
+        str_detect(location, "Switzerland") ~ "Switzerland",
+        str_detect(location, "South Korea") ~ "South Korea",
+        str_detect(location, "vancouver") ~ "Canada",
+        str_detect(location, "washingtondc") ~ "USA-WDC",
+        str_detect(location, "NPN") ~ "USA-NPN"
+      )
+  ) |> 
+  relocate(location, country, everything())
+```
+
+
+# DOY distribution by country
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5.5
+#| layout-nrow: 1
+#| column: screen-inset-shaded
+
+df_full |> 
+  filter(location != "NPN") |> 
+  ggplot(aes(x = bloom_doy)) +
+  facet_wrap(~country, ncol = 1, scales = "free_y") +
+  geom_histogram(color = "black") +
+  geom_rug() +
+  labs(x = "Bloom DOY", y = "Count",
+       title = "DOY distribution by country",
+       subtitle = "Original scale")
+
+df_full |> 
+  filter(location != "NPN") |> 
+  ggplot(aes(x = bloom_doy)) +
+  facet_wrap(~country, ncol = 1, scales = "free_y") +
+  geom_histogram(color = "black") +
+  geom_rug() +
+  scale_x_log10() +
+  labs(x = "Bloom DOY", y = "Count",
+       title = "DOY distribution by country",
+       subtitle = "Logarithmic scale")
+```
+
+# Scatter plot of all vs DOY
+
+- Los siguientes gráficos permiten evidenciar relaciones (lineales y no lineales) entre algunas de las variables bioclimáticas y el día de la floración, también se observan asociaciones entre composición de suelo, por ejemplo, pH y *DOY*, no son dicientes o claras las relaciones entre las variables de cobertura terreste, huella humana, pastizales, arbutos, agua y la fecha de la floración.
+- Con estos gráficos se valida o confirma que la temperatura (*bio1*, *bio5*, *bio8*, *bio9*, *bio10* y *bio11*) y el día de la floración exhiben una relación que podríamos sugerir está entre lineal y cuadrática, independiente del país, a mayor temperatura se han observado floraciones más precoces, este comportamiento es similar en Japón y Suiza, no obstante, Corea del Sur presenta algunas diferencias, por ejemplo, en la variable *bio11* para Japón y Suiza, la relación de tipo cuadrático es evidente, pero en Corea del sur no lo es.
+- Las precipitaciones (*bio12* a *bio19*) también muestran relaciones interesantes con la fecha de floración, con ligeras diferencias entre países, por ejemplo, la precipitación anual (*bio12*) muestra una relación lineal inversa con el *DOY*, en Suiza por el contrario observamos una relación cuadrática positiva y en Corea del Sur no es clara la relación. Este resultado puede sugerir que temperatura y precipitación son factores que interactuan y tener un efecto conjunto; más adelante se exploran interacciones entre variables para determinar covariaciones de interés.
+- La estacionalidad de la temperatura (*bio4*) muestra un patrón de comportamiento diferente entre países, en Japón la relación es positiva y lineal, en Corea del Sur no es clara la asociación y en Suiza muesra una relación inversa cuadrática. Recordemos que las variables bioclimáticas (*bio_*) recogen información de los años 1970 a 2000, con una resolución de $1 km^2$, este hallazgo será comparado más adelante con la información diaria de temperatura para validar las relaciones que se evidencian en este gráfico.
+- En cuanto a la composición del suelo, el nitrógeno, el pH del agua del suelo, el contenido de carbono orgánico del suelo (*SOC*), la densidad aparente (*BDOD*) y la capacidad de intercambio catiónico (*CEC*) muestran tendencias en la relación con el *DOY*. Las otras variables parecen no tener ninguna asociación (lineal o no lineal) con la variable objetivo.
+- Finalmente, la información de tierras de cultivo (*CROPLAND*), huella humana (*FOOTPRINT*) y coberturas terrestres, no exhiben ningún tipo de relación que pudiera ser considerada de interés para análisis posteriores, además, algunas de estas variables (por ejemplo *SHRUBS*) carecen de información para las coordenadas bajo análisis.
+
+::: {.panel-tabset}
+
+## Japan
+
+```{r}
+#| fig-width: 9
+#| fig-height: 16
+#| fig-align: center
+#| column: page-inset-right
+df_full |>
+  filter(country == "Japan") |> 
+  select(-c(location, country,  year, bloom_date)) |>
+  pivot_longer(cols = -bloom_doy) |>
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point(size = 0.5, alpha = 0.25) +
+  stat_bin_2d(aes(fill = ..density..),
+                  geom = "raster", 
+                  contour = FALSE,
+                  show.legend = FALSE) +
+  scale_fill_distiller(palette = 4, direction = -1) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "firebrick3",
+              se = FALSE) +
+  scale_x_log10() +
+  labs(y = "DOY", x = "", title = "Japan")
+```
+
+## Switzerland
+
+```{r}
+#| fig-width: 9
+#| fig-height: 16
+#| fig-align: center
+#| column: page-inset-right
+df_full |>
+  filter(country == "Switzerland") |> 
+  select(-c(location, country,  year, bloom_date)) |>
+  pivot_longer(cols = -bloom_doy) |>
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point(size = 0.5, alpha = 0.25) +
+  stat_bin_2d(aes(fill = ..density..),
+                  geom = "raster", 
+                  contour = FALSE,
+                  show.legend = FALSE) +
+  scale_fill_distiller(palette = 4, direction = -1) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "firebrick3",
+              se = FALSE) +
+  scale_x_log10() +
+  labs(y = "DOY", x = "", title = "Switzerland")
+```
+
+## South Korea
+
+```{r}
+#| fig-width: 9
+#| fig-height: 16
+#| fig-align: center
+#| column: page-inset-right
+df_full |>
+  filter(country == "South Korea") |>
+  select(-c(location, country,  year, bloom_date)) |>
+  pivot_longer(cols = -bloom_doy) |>
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point(size = 0.5, alpha = 0.25) +
+  stat_bin_2d(aes(fill = ..density..),
+                  geom = "raster", 
+                  contour = FALSE,
+                  show.legend = FALSE) +
+  scale_fill_distiller(palette = 4, direction = -1) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "firebrick3",
+              se = FALSE) +
+  scale_x_log10() +
+  labs(y = "DOY", x = "", title = "South Korea")
+```
+
+
+## All the countries
+
+```{r}
+#| fig-width: 9
+#| fig-height: 16
+#| fig-align: center
+#| column: page-inset-right
+df_full |>
+  filter(location != "NPN") |>
+  select(-c(location, country,  year, bloom_date)) |>
+  pivot_longer(cols = -bloom_doy) |>
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point(size = 0.5, alpha = 0.25) +
+  stat_bin_2d(aes(fill = ..density..),
+                  geom = "raster", 
+                  contour = FALSE,
+                  show.legend = FALSE) +
+  scale_fill_distiller(palette = 4, direction = -1) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "firebrick3",
+              se = FALSE) +
+  scale_x_log10() +
+  labs(y = "DOY", x = "", title = "All the countries")
+```
+
+
+:::
+
+# Non-parametric correlations
+
+- Estos perfiles de correlación muestran para cada país y todos los países, de mayor a menor correlación (Spearman). En Japón y Corea del Sur, los cerezos ubicados más al norte parecen tardarse más en la floración (colores azules), la variable *latitud* es la primera en el perfil de correlaciones de estos países, sin embargo, en Suiza no es la latitud el factor lineal de mayor influcencia, es la *altitud* seguido de variables de composición de suelo y en el top 10 están tres variables que recogen información de precipitación. Si observamos la parte baja del gráfico (colores rojos) en todos los países coincide la variable temperatura anual (*bio1*) en ser el factor lineal inverso de mayor magnitud, seguido de otras variables indicadoras también de temperaturas. Este gráfico es de mucha utilidad no sólo para representar relaciones de tipo lineal sino también para obtener una caracterización rápida de la relación del clima con la fenología en cerezos ubicados en diferentes países, podemos decir que si pensamos en los factores que se asociación con **tardanza** en la floración, los perfiles entre países son muy diferentes, no obstante, si pensamos en los factores que se asociación con la **precocidad** en la floración, los perfiles entre países son muy parecidos. En conclusión, florecer más rápido parece tener unas *"causas"* comunes y globales ligadas a la temperatura, sin embargo, el retraso en la floración podría ser más difícil de establecer y generalizar.
+
+```{r}
+#| fig-width: 4
+#| fig-height: 8
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(country == "Japan") |>
+  select(where(is.numeric), -c(shrubs)) |>
+  correlate(method = "spearman") |>
+  filter(term == "bloom_doy") |>
+  pivot_longer(cols = -term) |>
+  filter(!is.na(value)) |>
+  mutate(
+    name = str_replace_all(
+      name,
+      "wildareas-v3-1993-human-footprint",
+      "human-footprint93"
+    ),
+    name = str_replace_all(
+      name,
+      "wildareas-v3-2009-human-footprint",
+      "human-footprint09"
+    )
+  ) |>
+  ggplot(aes(
+    x = reorder(name, value),
+    y = term,
+    fill = value
+  )) +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1)) +
+  labs(x = "",
+       y = "",
+       fill = "",
+       title = "Japan") +
+  coord_flip()
+
+
+df_full |> 
+  filter(country == "Switzerland") |> 
+  select(where(is.numeric), -c(shrubs)) |> 
+  correlate(method = "spearman") |> 
+  filter(term == "bloom_doy") |> 
+  pivot_longer(cols = -term) |> 
+  filter(!is.na(value)) |> 
+  mutate(name = str_replace_all(name,
+                                "wildareas-v3-1993-human-footprint",
+                                "human-footprint93"),
+         name = str_replace_all(name,
+                                "wildareas-v3-2009-human-footprint",
+                                "human-footprint09")) |> 
+  ggplot(aes(x = reorder(name, value), y = term, fill = value)) +
+  geom_tile() +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1)) +
+  labs(x = "", y = "", fill = "", title = "Switzerland") +
+  coord_flip()
+
+
+df_full |> 
+  filter(country == "South Korea") |> 
+  select(where(is.numeric), -c(shrubs)) |> 
+  correlate(method = "spearman") |> 
+  filter(term == "bloom_doy") |> 
+  pivot_longer(cols = -term) |> 
+  filter(!is.na(value)) |> 
+  mutate(name = str_replace_all(name,
+                                "wildareas-v3-1993-human-footprint",
+                                "human-footprint93"),
+         name = str_replace_all(name,
+                                "wildareas-v3-2009-human-footprint",
+                                "human-footprint09")) |> 
+  ggplot(aes(x = reorder(name, value), y = term, fill = value)) +
+  geom_tile()  +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1)) +
+  labs(x = "", y = "", fill = "", title = "South Korea") +
+  coord_flip()
+
+
+df_full |> 
+  filter(location != "NPN") |> 
+  select(where(is.numeric), -c(shrubs)) |> 
+  correlate(method = "spearman") |> 
+  filter(term == "bloom_doy") |> 
+  pivot_longer(cols = -term) |> 
+  filter(!is.na(value)) |> 
+  mutate(name = str_replace_all(name,
+                                "wildareas-v3-1993-human-footprint",
+                                "human-footprint93"),
+         name = str_replace_all(name,
+                                "wildareas-v3-2009-human-footprint",
+                                "human-footprint09")) |> 
+  ggplot(aes(x = reorder(name, value), y = term, fill = value)) +
+  geom_tile()  +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1),
+        legend.key.size = unit(0.85, "cm")) +
+  labs(x = "", y = "", fill = "", title = "All the countries") +
+  coord_flip()
+```
+
+# Interaction of variables
+
+- Con los siguientes gráficos pretendo reconocer si existen comportamientos de interacción, es decir, intento confirmar a partir de representaciones visuales si hay efectos conjuntos entre las variables predictoras. En vista de que el conjunto de variables predictoras es "grande" $(P = 41)$ generar todas las interacciones (dobles, triples o de mayor jerarquía) podría ser dispendioso y demorado. Las siguientes son las dos aproximaciones que implemento:
+  - **1.** Inicialmente voy a graficar diagramas de dispersión con las variables que mostraron tendencias en los gráficos de dispersión y los perfiles de correlación, el color de los puntos está determinado por la variable respuesta `bloom_doy`.
+  - **2.** Grafico la interacción doble para algunas variables de interés vs la variable respuesta.
+
+## Scatter plot
+
+- En estos gráficos aplico la función distinct() por latitud y longitud porque la misma coordenada (así sean en años diferentes) tiene el mismo dato de bioclimáticas, suelo y coberturas, ya que esta información no posee temporalidad. Por esa razón resumo con la **mediana del `bloom_doy`** (ya que esta variable sí cambia con el tiempo).
+
+::: {.panel-tabset}
+
+### Temperature - Precipitation
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(country == "Japan") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = bio12, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Annual precipitation (mm)",
+       color = "DOY (median)",
+       title = "Japan") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(country == "Switzerland") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = bio12, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Annual precipitation (mm)",
+       color = "DOY (median)",
+       title = "Switzerland") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(country == "South Korea") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = bio12, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Annual precipitation (mm)",
+       color = "DOY (median)",
+       title = "South Korea") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+```
+
+### Temperature - Nitrogen
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(country == "Japan") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `nitrogen_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Nitrogen (cg/kg)",
+       color = "DOY (median)",
+       title = "Japan") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(country == "Switzerland") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `nitrogen_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Nitrogen (cg/kg)",
+       color = "DOY (median)",
+       title = "Switzerland") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))  +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(country == "South Korea") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `nitrogen_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Nitrogen (cg/kg)",
+       color = "DOY (median)",
+       title = "South Korea") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+```
+
+### Temperature - SOC
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(`soc_0-5cm_mean` > 0) |> 
+  filter(country == "Japan") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `soc_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Soil organic carbon (dg/kg)",
+       color = "DOY (median)",
+       title = "Japan") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(`soc_0-5cm_mean` > 0) |> 
+  filter(country == "Switzerland") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `soc_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Soil organic carbon (dg/kg)",
+       color = "DOY (median)",
+       title = "Switzerland") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))  +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(`soc_0-5cm_mean` > 0) |> 
+  filter(country == "South Korea") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `soc_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Soil organic carbon (dg/kg)",
+       color = "DOY (median)",
+       title = "South Korea") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+```
+
+### Temperature - BDOD
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(`bdod_0-5cm_mean` > 0) |> 
+  filter(country == "Japan") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `bdod_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Bulk density (cg/cm³)",
+       color = "DOY (median)",
+       title = "Japan") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(`bdod_0-5cm_mean` > 0) |> 
+  filter(country == "Switzerland") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `bdod_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Bulk density (cg/cm³)",
+       color = "DOY (median)",
+       title = "Switzerland") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))  +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(`bdod_0-5cm_mean` > 0) |> 
+  filter(country == "South Korea") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio1, y = `bdod_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual mean temperature (°C)",
+       y = "Bulk density (cg/cm³)",
+       color = "DOY (median)",
+       title = "South Korea") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+```
+
+### Precipitation - Nitrogen
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(`nitrogen_0-5cm_mean` > 0) |> 
+  filter(country == "Japan") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio12, y = `nitrogen_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual precipitation (mm)",
+       y = "Nitrogen (cg/kg)",
+       color = "DOY (median)",
+       title = "Japan") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(`nitrogen_0-5cm_mean` > 0) |> 
+  filter(country == "Switzerland") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio12, y = `nitrogen_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual precipitation (mm)",
+       y = "Nitrogen (cg/kg)",
+       color = "DOY (median)",
+       title = "Switzerland") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))  +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(`nitrogen_0-5cm_mean` > 0) |>  
+  filter(country == "South Korea") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = bio12, y = `nitrogen_0-5cm_mean`, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(x = "Annual precipitation (mm)",
+       y = "Nitrogen (cg/kg)",
+       color = "DOY (median)",
+       title = "South Korea") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+```
+
+### Altitude - Precipitation
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+  filter(country == "Japan") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = alt, y = bio12, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(y = "Annual precipitation (mm)",
+       x = "Altitude",
+       color = "DOY (median)",
+       title = "Japan") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(country == "Switzerland") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = alt, y = bio12, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(y = "Annual precipitation (mm)",
+       x = "Altitude)",
+       color = "DOY (median)",
+       title = "Switzerland") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))  +
+  scale_x_log10() +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+
+df_full |>
+  filter(country == "South Korea") |> 
+  group_by(lat, long) |> 
+  mutate(
+    median_doy = median(bloom_doy, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(lat, long, .keep_all = TRUE)  |> 
+  ggplot(aes(x = alt, y = bio12, color = bloom_doy)) +
+  geom_point() +
+  scale_color_viridis_c(
+    trans = "log10",
+    breaks = trans_breaks(trans = "log10",
+                          inv = function(x) round(10 ^ x, digits = 1))
+  ) +
+  labs(y = "Annual precipitation (mm)",
+       x = "Altitude",
+       color = "DOY (median)",
+       title = "South Korea") +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm")) +
+  geom_smooth(method = "gam",
+              formula = y ~ ns(x, df = 2),
+              color = "red",
+              size = 0.5)
+```
+
+:::
+
+
+## Interaction
+
+::: {.panel-tabset}
+
+### Temperature - Precipitation
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+countries <- c("Japan", "Switzerland", "South Korea")
+
+df_full |>
+    filter(country == countries[1]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * bio12) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Annual precipitation (mm)",
+         y = "DOY",
+         title = countries[1])
+
+df_full |>
+    filter(country == countries[2]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * bio12) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Annual precipitation (mm)",
+         y = "DOY",
+         title = countries[2])
+
+df_full |>
+    filter(country == countries[3]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * bio12) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Annual precipitation (mm)",
+         y = "DOY",
+         title = countries[3])
+```
+
+### Temperature - Nitrogen
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+    filter(country == countries[1]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `nitrogen_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Nitrogen (cg/kg)",
+         y = "DOY",
+         title = countries[1])
+
+df_full |>
+    filter(country == countries[2]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `nitrogen_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Nitrogen (cg/kg)",
+         y = "DOY",
+         title = countries[2])
+
+df_full |>
+    filter(country == countries[3]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `nitrogen_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Nitrogen (cg/kg)",
+         y = "DOY",
+         title = countries[3])
+```
+
+### Temperature - SOC
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+    filter(country == countries[1]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `soc_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Soil organic carbon (dg/kg)",
+         y = "DOY",
+         title = countries[1])
+
+df_full |>
+    filter(country == countries[2]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `soc_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Soil organic carbon (dg/kg)",
+         y = "DOY",
+         title = countries[2])
+
+df_full |>
+    filter(country == countries[3]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `soc_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Soil organic carbon (dg/kg)",
+         y = "DOY",
+         title = countries[3])
+```
+
+### Temperature - BDOD
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+    filter(country == countries[1]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `bdod_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Bulk density (cg/cm³)",
+         y = "DOY",
+         title = countries[1])
+
+df_full |>
+    filter(country == countries[2]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `bdod_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Bulk density (cg/cm³)",
+         y = "DOY",
+         title = countries[2])
+
+df_full |>
+    filter(country == countries[3]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio1 * `bdod_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual mean temperature (°C) * Bulk density (cg/cm³)",
+         y = "DOY",
+         title = countries[3])
+```
+
+### Precipitation - Nitrogen
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+    filter(country == countries[1]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio12 * `nitrogen_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual precipitation (mm) * Nitrogen (cg/kg)",
+         y = "DOY",
+         title = countries[1])
+
+df_full |>
+    filter(country == countries[2]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio12 * `nitrogen_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual precipitation (mm) * Nitrogen (cg/kg)",
+         y = "DOY",
+         title = countries[2])
+
+df_full |>
+    filter(country == countries[3]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = bio12 * `nitrogen_0-5cm_mean`) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Annual precipitation (mm) * Nitrogen (cg/kg)",
+         y = "DOY",
+         title = countries[3])
+```
+
+### Altitude - Precipitation
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 1
+
+df_full |>
+    filter(country == countries[1]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = alt * bio12) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Altitude * Annual precipitation (mm) ",
+         y = "DOY",
+         title = countries[1])
+
+df_full |>
+    filter(country == countries[2]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = alt * bio12) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Altitude * Annual precipitation (mm) ",
+         y = "DOY",
+         title = countries[2])
+
+df_full |>
+    filter(country == countries[3]) |>
+    group_by(lat, long) |>
+    mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+    ungroup() |>
+    distinct(lat, long, .keep_all = TRUE)  |>
+    mutate(var_inter = alt * bio12) |>
+    ggplot(aes(x = var_inter, y = bloom_doy)) +
+    geom_point() +
+    scale_x_log10() +
+    geom_smooth(
+      method = "gam",
+      formula = y ~ ns(x, df = 2),
+      color = "red",
+      size = 0.5
+    ) +
+    labs(x = "Altitude * Annual precipitation (mm) ",
+         y = "DOY",
+         title = countries[3])
+```
+
+::: 
+
+# Principal Component Analysis (PCA)
+
+- Aprovechando que existe alta correlación entre las variables predictoras, ejecuto análisis de componentes principales para reducir la dimensionalidad e intentar ver si en un espacio más pequeño de variables se exhibe algún patrón de comportamiento relacionado con la variable respuesta.
+- Para facilitar las visualizaciones discretizo la variable respuesta en los siguientes niveles (ordinales):
+  - **`Q1`:** valores de `bloom_doy` inferiores al valor del cuartil 1: $DOY < Q1$.
+  - **`Q2`:** valores de `bloom_doy` mayores o iguales al valor del cuartil 1 y menores al valor del cuartil 2: $Q1 \leq DOY < Q2$.
+  - **`Q3`:** valores de `bloom_doy` mayores o iguales al valor del cuartil 2 y menores al valor del cuartil 3: $Q2 \leq DOY < Q3$.
+  - **`Q4`:** valores de `bloom_doy` superiores  o iguales al valor del cuartil 3: $DOY \geq Q3$.
+- La variable respuesta discretizada `doy_categ` la introduzco al PCA como variable suplementaría cualitativa.
+  
+::: {.panel-tabset}
+
+## Japan
+
+- Con cuatro componentes principales se retiene el 69.4% de la variabilidad total. 
+- Con diez componentes principales se retiene el 89.2% de la variabilidad total.
+- Disminuir de 41 dimensiones a 4 perdiente aproximadamente el 30% de la variabilidad no está nada mal para propósitos de graficación, sin embargo, para propósitos de modelación, valdría la pena reducir de 41 variables a solo 10 componentes.
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 2
+
+df_pca_japan1 <-
+  df_full |>
+  filter(country == countries[1]) 
+
+value_q1 <- 
+  quantile(df_pca_japan1$bloom_doy, probs = 0.25, na.rm = TRUE)
+
+value_q2 <- 
+  quantile(df_pca_japan1$bloom_doy, probs = 0.50, na.rm = TRUE)
+
+value_q3 <- 
+  quantile(df_pca_japan1$bloom_doy, probs = 0.75, na.rm = TRUE)
+
+order_categ <-
+  c("DOY < Q1",
+    "Q1 <= DOY < Q2",
+    "Q2 <= DOY < Q3",
+    "DOY >= Q3")
+
+df_pca_japan2 <-
+  df_pca_japan1 |>
+  group_by(lat, long) |>
+  mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+  ungroup() |>
+  distinct(lat, long, .keep_all = TRUE) |>
+  select(-shrubs) |>
+  mutate(
+    doy_categ = case_when(
+      median_doy < value_q1 ~ "DOY < Q1",
+      median_doy >= value_q1 &
+        median_doy < value_q2 ~ "Q1 <= DOY < Q2",
+      median_doy >= value_q2 &
+        median_doy < value_q3 ~ "Q2 <= DOY < Q3",
+      median_doy >= value_q3 ~ "DOY >= Q3",
+    ),
+    doy_categ = factor(doy_categ, levels = order_categ)
+  ) |>
+  select(-c(location, country, bloom_date, bloom_doy, median_doy)) |>
+  relocate(doy_categ, everything())
+
+
+pca_japan <- PCA(X = df_pca_japan2, graph = FALSE, quali.sup = 1)
+
+df_pca_japan2$pc1 <- pca_japan$ind$coord[, 1]
+df_pca_japan2$pc2 <- pca_japan$ind$coord[, 2]
+df_pca_japan2$pc3 <- pca_japan$ind$coord[, 3]
+
+eigen_pc1 <- pca_japan$eig[, 2][1] |> round(digits = 1)
+eigen_pc2 <- pca_japan$eig[, 2][2] |> round(digits = 1)
+eigen_pc3 <- pca_japan$eig[, 2][3] |> round(digits = 1)
+
+fviz_pca_var(pca_japan, axes = c(1, 2), select.var = list(contrib = 15))
+
+df_pca_japan2 |> 
+  ggplot(aes(x = pc1, y = pc2, color = doy_categ)) +
+  geom_point(size = 2.5, alpha = 0.75, shape = 18) +
+  geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
+  geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
+  labs(x = glue("Dim1 ({eigen_pc1}%)"),
+       y = glue("Dim2 ({eigen_pc2}%)")) +
+  scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
+  labs(color = "")
+
+fviz_pca_var(pca_japan, axes = c(1, 3), select.var = list(contrib = 15))
+
+df_pca_japan2 |> 
+  ggplot(aes(x = pc1, y = pc3, color = doy_categ)) +
+  geom_point(size = 2.5, alpha = 0.75, shape = 18) +
+  geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
+  geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
+  labs(x = glue("Dim1 ({eigen_pc1}%)"),
+       y = glue("Dim3 ({eigen_pc3}%)")) +
+  scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
+  labs(color = "")
+```
+
+
+## Switzerland
+
+- Con cuatro componentes principales se retiene el 66.4% de la variabilidad total. 
+- Con diez componentes principales se retiene el 85.5% de la variabilidad total.
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 2
+
+df_pca_switzerland1 <-
+  df_full |>
+  filter(country == countries[2]) 
+
+value_q1 <- 
+  quantile(df_pca_switzerland1$bloom_doy, probs = 0.25, na.rm = TRUE)
+
+value_q2 <- 
+  quantile(df_pca_switzerland1$bloom_doy, probs = 0.50, na.rm = TRUE)
+
+value_q3 <- 
+  quantile(df_pca_switzerland1$bloom_doy, probs = 0.75, na.rm = TRUE)
+
+df_pca_switzerland2 <-
+  df_pca_switzerland1 |>
+  group_by(lat, long) |>
+  mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+  ungroup() |>
+  distinct(lat, long, .keep_all = TRUE) |>
+  select(-shrubs) |>
+  mutate(
+    doy_categ = case_when(
+      median_doy < value_q1 ~ "DOY < Q1",
+      median_doy >= value_q1 &
+        median_doy < value_q2 ~ "Q1 <= DOY < Q2",
+      median_doy >= value_q2 &
+        median_doy < value_q3 ~ "Q2 <= DOY < Q3",
+      median_doy >= value_q3 ~ "DOY >= Q3",
+    ),
+    doy_categ = factor(doy_categ, levels = order_categ)
+  ) |>
+  select(-c(location, country, bloom_date, bloom_doy, median_doy)) |>
+  relocate(doy_categ, everything())
+
+
+pca_switzerland <- PCA(X = df_pca_switzerland2, graph = FALSE, quali.sup = 1)
+
+df_pca_switzerland2$pc1 <- pca_switzerland$ind$coord[, 1]
+df_pca_switzerland2$pc2 <- pca_switzerland$ind$coord[, 2]
+df_pca_switzerland2$pc3 <- pca_switzerland$ind$coord[, 3]
+
+eigen_pc1 <- pca_switzerland$eig[, 2][1] |> round(digits = 1)
+eigen_pc2 <- pca_switzerland$eig[, 2][2] |> round(digits = 1)
+eigen_pc3 <- pca_switzerland$eig[, 2][3] |> round(digits = 1)
+
+fviz_pca_var(pca_switzerland, axes = c(1, 2), select.var = list(contrib = 15))
+
+df_pca_switzerland2 |> 
+  ggplot(aes(x = pc1, y = pc2, color = doy_categ)) +
+  geom_point(size = 2.5, alpha = 0.75, shape = 18) +
+  geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
+  geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
+  labs(x = glue("Dim1 ({eigen_pc1}%)"),
+       y = glue("Dim2 ({eigen_pc2}%)")) +
+  scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
+  labs(color = "")
+
+fviz_pca_var(pca_switzerland, axes = c(1, 3), select.var = list(contrib = 15))
+
+df_pca_switzerland2 |> 
+  ggplot(aes(x = pc1, y = pc3, color = doy_categ)) +
+  geom_point(size = 2.5, alpha = 0.75, shape = 18) +
+  geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
+  geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
+  labs(x = glue("Dim1 ({eigen_pc1}%)"),
+       y = glue("Dim3 ({eigen_pc3}%)")) +
+  scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
+  labs(color = "")
+```
+
+## South Korea
+
+- Con cuatro componentes principales se retiene el 66.4% de la variabilidad total. 
+- Con diez componentes principales se retiene el 89.7% de la variabilidad total.
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4.5
+#| column: screen
+#| layout-nrow: 2
+
+df_pca_southk1 <-
+  df_full |>
+  filter(country == countries[3]) 
+
+value_q1 <- 
+  quantile(df_pca_southk1$bloom_doy, probs = 0.25, na.rm = TRUE)
+
+value_q2 <- 
+  quantile(df_pca_southk1$bloom_doy, probs = 0.50, na.rm = TRUE)
+
+value_q3 <- 
+  quantile(df_pca_southk1$bloom_doy, probs = 0.75, na.rm = TRUE)
+
+df_pca_southk2 <-
+  df_pca_southk1 |>
+  group_by(lat, long) |>
+  mutate(median_doy = median(bloom_doy, na.rm = TRUE)) |>
+  ungroup() |>
+  distinct(lat, long, .keep_all = TRUE) |>
+  select(-shrubs) |>
+  mutate(
+    doy_categ = case_when(
+      median_doy < value_q1 ~ "DOY < Q1",
+      median_doy >= value_q1 &
+        median_doy < value_q2 ~ "Q1 <= DOY < Q2",
+      median_doy >= value_q2 &
+        median_doy < value_q3 ~ "Q2 <= DOY < Q3",
+      median_doy >= value_q3 ~ "DOY >= Q3",
+    ),
+    doy_categ = factor(doy_categ, levels = order_categ)
+  ) |>
+  select(-c(location, country, bloom_date, bloom_doy, median_doy)) |>
+  relocate(doy_categ, everything())
+
+
+pca_southk <- PCA(X = df_pca_southk2, graph = FALSE, quali.sup = 1)
+
+df_pca_southk2$pc1 <- pca_southk$ind$coord[, 1]
+df_pca_southk2$pc2 <- pca_southk$ind$coord[, 2]
+df_pca_southk2$pc3 <- pca_southk$ind$coord[, 3]
+
+eigen_pc1 <- pca_southk$eig[, 2][1] |> round(digits = 1)
+eigen_pc2 <- pca_southk$eig[, 2][2] |> round(digits = 1)
+eigen_pc3 <- pca_southk$eig[, 2][3] |> round(digits = 1)
+
+fviz_pca_var(pca_southk, axes = c(1, 2), select.var = list(contrib = 15))
+
+df_pca_southk2 |> 
+  ggplot(aes(x = pc1, y = pc2, color = doy_categ)) +
+  geom_point(size = 2.5, alpha = 0.75, shape = 18) +
+  geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
+  geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
+  labs(x = glue("Dim1 ({eigen_pc1}%)"),
+       y = glue("Dim2 ({eigen_pc2}%)")) +
+  scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
+  labs(color = "")
+
+fviz_pca_var(pca_southk, axes = c(1, 3), select.var = list(contrib = 15))
+
+df_pca_southk2 |> 
+  ggplot(aes(x = pc1, y = pc3, color = doy_categ)) +
+  geom_point(size = 2.5, alpha = 0.75, shape = 18) +
+  geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
+  geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
+  labs(x = glue("Dim1 ({eigen_pc1}%)"),
+       y = glue("Dim3 ({eigen_pc3}%)")) +
+  scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
+  labs(color = "")
+```
+
+:::
