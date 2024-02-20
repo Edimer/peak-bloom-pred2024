@@ -361,7 +361,7 @@ df_full |>
 # Interaction of variables
 
 - Con los siguientes gráficos pretendo reconocer si existen comportamientos de interacción, es decir, intento confirmar a partir de representaciones visuales si hay efectos conjuntos entre las variables predictoras. En vista de que el conjunto de variables predictoras es "grande" $(P = 41)$ generar todas las interacciones (dobles, triples o de mayor jerarquía) podría ser dispendioso y demorado. Las siguientes son las dos aproximaciones que implemento:
-  - **1.** Inicialmente voy a graficar diagramas de dispersión con las variables que mostraron tendencias en los gráficos de dispersión y los perfiles de correlación, el color de los puntos está determinado por la variable respuesta `bloom_doy`.
+  - **1.** Inicialmente voy a graficar diagramas de dispersión con las variables que mostraron tendencias en los gráficos de dispersión y los perfiles de correlación; el color de los puntos está determinado por la variable respuesta `bloom_doy`.
   - **2.** Grafico la interacción doble para algunas variables de interés vs la variable respuesta.
 
 ## Scatter plot
@@ -916,6 +916,14 @@ df_full |>
 
 ## Interaction
 
+En este caso como las variables son numéricas simplemento multiplico las dos variables bajo análisis para evaluar el efecto de interacción. Teniendo en cuenta que *bloom_doy* es la variable respuesta $(y)$ y si ejemplificamos un modelo sencillo que incluye las variables temperatura anual $(x_1)$  y precipitación $(x_2)$ como predictoras, mi intención es validar si el efecto acumulativo o conjunto está presente. Podemos estimar el efecto marginal de $x_1$ y definirlo como $\beta_1$, lo propio podemos hacer con el efecto marginal de $x_2$ y definirlo como $\beta_2$, sin embargo, también es de interés evaluar el efecto de interacción $(\beta_3)x_1x_2$, en ese orden de ideas se puede expresar el modelo matamático como se muestra a continuación:
+
+$$y = \beta_0 + \beta_1x_1 + \beta_2x_2 + \beta_3x_1x_2 + error$$
+
+ Un primer resultado interesante de las interaccione evaluadas es que el comportamiento discrepa entre países, por ejemplo, la interacción *temperatura-precipitación* muestra una relación inversa con *bloom_doy*, pero no es lineal en los tres países, en Corea del Sur la relación tiende a ser cuadrática. Algo similar podemos observar en la interacción *temperatura-nitrógeno*, en Japón y Corea del Sur no exhibe ninguna relación con la variable objetivo, sin embargo, en Suiza se evidencia una relación lineal inversa. En los tres países la interacción *temperatura-bulk density* se relaciona de forma negativa con la variable respuesta, pero en Japón es evidente la dependencia lineal que existe entre la variable $y$ y la predictora derivada de esta interacción.
+
+Más adelante (en el documento **07-FeatureEngineering.qmd**) hago uso de la *regresión lasso* para seleccionar predictores y evaluar posibles efectos de interacción que no fueron representados en este análisis exploratorio.
+
 ::: {.panel-tabset}
 
 ### Temperature - Precipitation
@@ -1338,6 +1346,7 @@ df_full |>
 
 # Principal Component Analysis (PCA)
 
+- En estos gráficos aplico la función distinct() por latitud y longitud porque la misma coordenada (así sean en años diferentes) tiene el mismo dato de bioclimáticas, suelo y coberturas, ya que esta información no posee temporalidad. Por esa razón resumo con la **mediana del `bloom_doy`** (ya que esta variable sí cambia con el tiempo).
 - Aprovechando que existe alta correlación entre las variables predictoras, ejecuto análisis de componentes principales para reducir la dimensionalidad e intentar ver si en un espacio más pequeño de variables se exhibe algún patrón de comportamiento relacionado con la variable respuesta.
 - Para facilitar las visualizaciones discretizo la variable respuesta en los siguientes niveles (ordinales):
   - **`Q1`:** valores de `bloom_doy` inferiores al valor del cuartil 1: $DOY < Q1$.
@@ -1345,6 +1354,15 @@ df_full |>
   - **`Q3`:** valores de `bloom_doy` mayores o iguales al valor del cuartil 2 y menores al valor del cuartil 3: $Q2 \leq DOY < Q3$.
   - **`Q4`:** valores de `bloom_doy` superiores  o iguales al valor del cuartil 3: $DOY \geq Q3$.
 - La variable respuesta discretizada `doy_categ` la introduzco al PCA como variable suplementaría cualitativa.
+- Independientemente del país las floraciones que no superan el Q1 (`DOY < Q1`) y las que se tardan más del Q3 (`DOY >= Q3`) exhiben diferencias al graficarlas en los tres primeros componentes principales, quedando ubicadas en lugares diferentes. Es importante mencionar que el patrón es menos visible en Corea del Sur. Floraciones que están entre el el Q1 y Q3 tienden a ser similares. Esta diferenciación que se aprecia entre floraciones precoces y floraciones tardías podría constituirse en un indicativo de perfiles diferenciales en el nicho ecológico o entorno ambiental al cual están expuestos los cerezos.
+- En el caso de Japón se observa que el componente 1 está asociado de forma positiva con variables que recogen información de temperatura (bio1, bio5, bio10, bio11) y precipitación (bio12, bio13, bio16), indicando que valores mayores a cero en el componente 1 los podemos asociar con valores altos de temperatura y precipitación, justamente bajo estas condiciones observamos las floraciones rápidas (puntos azules), de otro lado, este componente está asociado de forma negativa con la latitud, la longitud, bio4 (estacionalidad de la temperatura), bio7 (rango anual de temperatura) y en menor medida con el nitrógeno, indicando que valores mayores a cero de este componente estarán relacionados no sólo con valores altos de temperatura y precipitación sino también con menor variación en la temperatura (bio4) y menor rango de temperatura anual (bio7), por tanto, el perfil descrito es el que aplica a las floraciones precoces, justo lo contrario ocurre con floraciones tardías, donde se esperan temperaturas y precipitaciones bajas, con mayores variaciones en la temperatura a través del año, también podríamos afirmar que plantas que están ubicadas más al sur de Japón tienden a presentar floraciones retardadas. Por la ubicación de los puntos también podríamos afirmar que las floraciones precoces en Japón están moduladas por cambios de temperatura, sin embargo, otros factores como la capacidad de intercambio catiónico (*cec*) y la densidad del carbono orgánico (*ocd*) podrían ser influyentes, ya que se observa que estas variables tiene correlación positiva con el componente 2, indicando que valores mayores a cero en el componente 2 están asociados con suelos altos en capacidad de intercambio catiónico y suelos con mayor densidad del carbono orgánico.
+- En Suiza también se evidencia la diferencia entre floraciones precoces y floraciones tardías, no obstante, la correlación de los componentes con las variables permite inferir patrones de comportamiento ligeramente diferentes a Japón y Corea del Sur. El componente uno tiene correlación positiva con variables que recogen información de temperatura (bio4, bio5, bio10, bio11) y exhibe correlación negativa con la altitud, el contenido de carbono orgánico del suelo (*soc*), el inventario de carbono orgánico del suelo (*ocs*) y en menor medida con variables de precipitación (bio12, bio16, bio17), estas correlaciones permiten inferior que floraciones precoses se dan en condiciones de alta temperatura (también la variación anual) y en sitios donde hay menor cantidad de lluvia anual, menor contenido de carbono orgánico del suelo y  ubicadas en altitudes bajas. Los cerezos que exhiben floraciones tardías tienden a estar ubicados en altitudes elevadas, sitios con mayor cantidad de precipitación anual, mayores contenidos de carbono orgánico del suelo. 
+- En Corea del Sur se observa un comportamiento similar al de Japón y Suiza en cuanto a que la temperatura es el factor determinante en los tiempos de floración. Sin embargo, el componente 1 está asociado de forma negativa con variables que recogen información de temperatura (bio1, bio6, bio9, bio11) y de forma positiva con variables que recogen información de la variación anual de la temperatura (bio4, bio7). Las floraciones tardías se ubican a la derecha del 0 en el componente 1, es decir, que estas plantas se espera estén en lugares con mayores variaciones en la temperatura  a través del año y también se espera que las temperaturas de estos sitios sean más bajas. Basado en la asociación positiva que tiene el componente 3 con las precipitaciones (bio12, bio15, bio16) y observando la ubicación de los puntos verdes en el gráfico de CP1 vs CP3, es posible intuir que las floraciones demoradas también están asociadas con mayores precipitaciones.
+- Es importante mencionar que todas estas interpretaciones las hago desde la perspectiva exploratoria, siguiendo las premisas de [J. W. Tukey](https://web.stanford.edu/class/bios221/book/00-chap.html) como se muestra en el siguiente diagrama. La idea principal ha sido reconocer patrones que me permitan realizar un diagnóstico objetivo de cara a la fase de modelación. 
+
+<center>
+![](https://web.stanford.edu/class/bios221/book/imgs/iterativeparadigm.png){width=250}
+</center>
   
 ::: {.panel-tabset}
 
@@ -1355,10 +1373,10 @@ df_full |>
 - Disminuir de 41 dimensiones a 4 perdiente aproximadamente el 30% de la variabilidad no está nada mal para propósitos de graficación, sin embargo, para propósitos de modelación, valdría la pena reducir de 41 variables a solo 10 componentes.
 
 ```{r}
-#| fig-width: 6
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.8
 #| column: screen
-#| layout-nrow: 2
+#| layout-nrow: 1
 
 df_pca_japan1 <-
   df_full |>
@@ -1411,29 +1429,56 @@ eigen_pc1 <- pca_japan$eig[, 2][1] |> round(digits = 1)
 eigen_pc2 <- pca_japan$eig[, 2][2] |> round(digits = 1)
 eigen_pc3 <- pca_japan$eig[, 2][3] |> round(digits = 1)
 
-fviz_pca_var(pca_japan, axes = c(1, 2), select.var = list(contrib = 15))
-
 df_pca_japan2 |> 
   ggplot(aes(x = pc1, y = pc2, color = doy_categ)) +
   geom_point(size = 2.5, alpha = 0.75, shape = 18) +
   geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
   geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
-  labs(x = glue("Dim1 ({eigen_pc1}%)"),
-       y = glue("Dim2 ({eigen_pc2}%)")) +
+  labs(x = glue("Component 1 ({eigen_pc1}%)"),
+       y = glue("Component 2 ({eigen_pc2}%)")) +
   scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
-  labs(color = "")
+  labs(color = "", title = "Component 1 vs Component 2")
 
-fviz_pca_var(pca_japan, axes = c(1, 3), select.var = list(contrib = 15))
+df_pca_japan2 |>
+  select(-c(doy_categ)) |> 
+  correlate(method = "pearson") |> 
+  filter(term %in% c("pc1", "pc2", "pc3")) |> 
+  select(-c(pc1, pc2, pc3)) |> 
+  pivot_longer(-term) |> 
+  mutate(
+    name = str_replace_all(
+      name,
+      "wildareas-v3-1993-human-footprint",
+      "human-footprint93"
+    ),
+    name = str_replace_all(
+      name,
+      "wildareas-v3-2009-human-footprint",
+      "human-footprint09"
+    )
+  ) |> 
+  ggplot(aes(x = reorder(name, value), y = term, fill = value)) +
+  geom_tile() + 
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  labs(x = "", y = "Component", fill = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7.5),
+        legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))
 
 df_pca_japan2 |> 
   ggplot(aes(x = pc1, y = pc3, color = doy_categ)) +
   geom_point(size = 2.5, alpha = 0.75, shape = 18) +
   geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
   geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
-  labs(x = glue("Dim1 ({eigen_pc1}%)"),
-       y = glue("Dim3 ({eigen_pc3}%)")) +
+  labs(x = glue("Component 1 ({eigen_pc1}%)"),
+       y = glue("Component 3 ({eigen_pc3}%)")) +
   scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
-  labs(color = "")
+  labs(color = "", title = "Component 1 vs Component 3")
 ```
 
 
@@ -1443,10 +1488,10 @@ df_pca_japan2 |>
 - Con diez componentes principales se retiene el 85.5% de la variabilidad total.
 
 ```{r}
-#| fig-width: 6
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.8
 #| column: screen
-#| layout-nrow: 2
+#| layout-nrow: 1
 
 df_pca_switzerland1 <-
   df_full |>
@@ -1460,6 +1505,12 @@ value_q2 <-
 
 value_q3 <- 
   quantile(df_pca_switzerland1$bloom_doy, probs = 0.75, na.rm = TRUE)
+
+order_categ <-
+  c("DOY < Q1",
+    "Q1 <= DOY < Q2",
+    "Q2 <= DOY < Q3",
+    "DOY >= Q3")
 
 df_pca_switzerland2 <-
   df_pca_switzerland1 |>
@@ -1493,29 +1544,56 @@ eigen_pc1 <- pca_switzerland$eig[, 2][1] |> round(digits = 1)
 eigen_pc2 <- pca_switzerland$eig[, 2][2] |> round(digits = 1)
 eigen_pc3 <- pca_switzerland$eig[, 2][3] |> round(digits = 1)
 
-fviz_pca_var(pca_switzerland, axes = c(1, 2), select.var = list(contrib = 15))
-
 df_pca_switzerland2 |> 
   ggplot(aes(x = pc1, y = pc2, color = doy_categ)) +
   geom_point(size = 2.5, alpha = 0.75, shape = 18) +
   geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
   geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
-  labs(x = glue("Dim1 ({eigen_pc1}%)"),
-       y = glue("Dim2 ({eigen_pc2}%)")) +
+  labs(x = glue("Component 1 ({eigen_pc1}%)"),
+       y = glue("Component 2 ({eigen_pc2}%)")) +
   scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
-  labs(color = "")
+  labs(color = "", title = "Component 1 vs Component 2")
 
-fviz_pca_var(pca_switzerland, axes = c(1, 3), select.var = list(contrib = 15))
+df_pca_switzerland2 |>
+  select(-c(doy_categ)) |> 
+  correlate(method = "pearson") |> 
+  filter(term %in% c("pc1", "pc2", "pc3")) |> 
+  select(-c(pc1, pc2, pc3)) |> 
+  pivot_longer(-term) |> 
+  mutate(
+    name = str_replace_all(
+      name,
+      "wildareas-v3-1993-human-footprint",
+      "human-footprint93"
+    ),
+    name = str_replace_all(
+      name,
+      "wildareas-v3-2009-human-footprint",
+      "human-footprint09"
+    )
+  ) |> 
+  ggplot(aes(x = reorder(name, value), y = term, fill = value)) +
+  geom_tile() + 
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  labs(x = "", y = "Component", fill = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7.5),
+        legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))
 
 df_pca_switzerland2 |> 
   ggplot(aes(x = pc1, y = pc3, color = doy_categ)) +
   geom_point(size = 2.5, alpha = 0.75, shape = 18) +
   geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
   geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
-  labs(x = glue("Dim1 ({eigen_pc1}%)"),
-       y = glue("Dim3 ({eigen_pc3}%)")) +
+  labs(x = glue("Component 1 ({eigen_pc1}%)"),
+       y = glue("Component 3 ({eigen_pc3}%)")) +
   scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
-  labs(color = "")
+  labs(color = "", title = "Component 1 vs Component 3")
 ```
 
 ## South Korea
@@ -1524,10 +1602,10 @@ df_pca_switzerland2 |>
 - Con diez componentes principales se retiene el 89.7% de la variabilidad total.
 
 ```{r}
-#| fig-width: 6
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.8
 #| column: screen
-#| layout-nrow: 2
+#| layout-nrow: 1
 
 df_pca_southk1 <-
   df_full |>
@@ -1541,6 +1619,12 @@ value_q2 <-
 
 value_q3 <- 
   quantile(df_pca_southk1$bloom_doy, probs = 0.75, na.rm = TRUE)
+
+order_categ <-
+  c("DOY < Q1",
+    "Q1 <= DOY < Q2",
+    "Q2 <= DOY < Q3",
+    "DOY >= Q3")
 
 df_pca_southk2 <-
   df_pca_southk1 |>
@@ -1574,29 +1658,56 @@ eigen_pc1 <- pca_southk$eig[, 2][1] |> round(digits = 1)
 eigen_pc2 <- pca_southk$eig[, 2][2] |> round(digits = 1)
 eigen_pc3 <- pca_southk$eig[, 2][3] |> round(digits = 1)
 
-fviz_pca_var(pca_southk, axes = c(1, 2), select.var = list(contrib = 15))
-
 df_pca_southk2 |> 
   ggplot(aes(x = pc1, y = pc2, color = doy_categ)) +
   geom_point(size = 2.5, alpha = 0.75, shape = 18) +
   geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
   geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
-  labs(x = glue("Dim1 ({eigen_pc1}%)"),
-       y = glue("Dim2 ({eigen_pc2}%)")) +
+  labs(x = glue("Component 1 ({eigen_pc1}%)"),
+       y = glue("Component 2 ({eigen_pc2}%)")) +
   scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
-  labs(color = "")
+  labs(color = "", title = "Component 1 vs Component 2")
 
-fviz_pca_var(pca_southk, axes = c(1, 3), select.var = list(contrib = 15))
+df_pca_southk2 |>
+  select(-c(doy_categ)) |> 
+  correlate(method = "pearson") |> 
+  filter(term %in% c("pc1", "pc2", "pc3")) |> 
+  select(-c(pc1, pc2, pc3)) |> 
+  pivot_longer(-term) |> 
+  mutate(
+    name = str_replace_all(
+      name,
+      "wildareas-v3-1993-human-footprint",
+      "human-footprint93"
+    ),
+    name = str_replace_all(
+      name,
+      "wildareas-v3-2009-human-footprint",
+      "human-footprint09"
+    )
+  ) |> 
+  ggplot(aes(x = reorder(name, value), y = term, fill = value)) +
+  geom_tile() + 
+  scale_fill_gradient2(
+    low = muted("red"),
+    mid = "white",
+    high = muted("dodgerblue2"),
+    midpoint = 0
+  ) +
+  labs(x = "", y = "Component", fill = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7.5),
+        legend.key.size = unit(1, "cm"),
+        legend.key.width = unit(2, "cm"))
 
 df_pca_southk2 |> 
   ggplot(aes(x = pc1, y = pc3, color = doy_categ)) +
   geom_point(size = 2.5, alpha = 0.75, shape = 18) +
   geom_hline(yintercept = 0, lty = 2, color = "firebrick3") +
   geom_vline(xintercept = 0, lty = 2, color = "firebrick3") +
-  labs(x = glue("Dim1 ({eigen_pc1}%)"),
-       y = glue("Dim3 ({eigen_pc3}%)")) +
+  labs(x = glue("Component 1 ({eigen_pc1}%)"),
+       y = glue("Component 3 ({eigen_pc3}%)")) +
   scale_color_manual(values = c("dodgerblue3", "gray80", "gray80", "forestgreen")) +
-  labs(color = "")
+  labs(color = "", title = "Component 1 vs Component 3")
 ```
 
 :::
