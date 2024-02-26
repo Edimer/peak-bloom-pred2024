@@ -33,7 +33,7 @@ knitr::opts_chunk$set(echo = TRUE,
 # Document description
 
 - En este documento se lleva a cabo análisis exploratorio de datos con las variables bioclimáticas, de suelo, coberturas terrestres y huella humana. Recordemos que las variables bioclimáticas son un consolidado de los años 1970 a 2000. Este documento tiene como finalidad comparar las fechas de floración entre países, validar relaciones que han sido reportadas en literatura (por ejemplo, la relación de temperatura con *DOY*), determinar la existencia de efectos de interacción y establecer cuáles de las variables predictoras podrían ser eventualmente candidatas para incluir en la modelación (*selección de predictores*). Podríamos decir que las variables analizadas en este documento son *"estáticas"* o *"fijas"*, ya que no tenemos temporalidad de ellas, son datos consolidados en ventanas de tiempo preestablecidas.
-- En el siguiente documento (**06-EDA2.qmd**) se muestran resultados de análisis exploratorio para variables *"dinámicas"*, me refiero a ellas como dinámicas ya que las variables climatológicas y de fotoperíodo tienen temporalidad (datos diarios) y obtuve información desde el 01 de enero de 1981 hasta el 31 de diciembre de 2023.
+- En el siguiente documento (**06-EDA2-FE.qmd**) se muestran resultados de análisis exploratorio para variables *"dinámicas"*, me refiero a ellas como dinámicas ya que las variables climatológicas y de fotoperíodo tienen temporalidad (datos diarios) y obtuve información desde el 01 de enero de 1981 hasta el 31 de diciembre de 2023.
 
 # Libraries and setup
 
@@ -53,7 +53,7 @@ theme_set(theme_bw() + theme(legend.position = "top"))
 # Data
 
 - Extraigo una variable de nombre `country` que tiene el país, esto lo hago con la finalidad de evaluar patrones de comportamiento por diferentes países y porque podría ser de ayuda para extrapolar a regiones donde no tenemos registros históricos de floración. Para diferenciar los datos de *NPN* para USA, los etiqueto en la variable `country` como `USA-NPN` y a los de Washington DC como `USA-WDC`.
-- En varios de los resultados de ese documento no se incluye `USA-WDC` porque sólo es una coordenada (lat=38.88535, long=-77.03863) y tampoco se muestran los resultados de `USA-NPN`, la razón es que las variables bioclimáticas no están para las coordenadas de `USA-NPN`, sin embargo, como información de clima fue suministrada por *NPN*, uso esta información para análisis exploratorio al final de este documento  y también en el próximo (**06-EDA2.qmd**).
+- En varios de los resultados de ese documento no se incluye `USA-WDC` porque sólo es una coordenada (lat=38.88535, long=-77.03863) y tampoco se muestran los resultados de `USA-NPN`, la razón es que las variables bioclimáticas no están para las coordenadas de `USA-NPN`, sin embargo, como información de clima fue suministrada por *NPN*, uso esta información para análisis exploratorio al final de este documento  y también en el próximo (**06-EDA2-FE.qmd**).
 
 ```{r}
 df_full <- read_parquet("../external-data/df_full.parquet") |> 
@@ -922,7 +922,7 @@ $$y = \beta_0 + \beta_1x_1 + \beta_2x_2 + \beta_3x_1x_2 + error$$
 
  Un primer resultado interesante de las interaccione evaluadas es que el comportamiento discrepa entre países, por ejemplo, la interacción *temperatura-precipitación* muestra una relación inversa con *bloom_doy*, pero no es lineal en los tres países, en Corea del Sur la relación tiende a ser cuadrática. Algo similar podemos observar en la interacción *temperatura-nitrógeno*, en Japón y Corea del Sur no exhibe ninguna relación con la variable objetivo, sin embargo, en Suiza se evidencia una relación lineal inversa. En los tres países la interacción *temperatura-bulk density* se relaciona de forma negativa con la variable respuesta, pero en Japón es evidente la dependencia lineal que existe entre la variable $y$ y la predictora derivada de esta interacción.
 
-Más adelante (en el documento **07-FeatureEngineering.qmd**) hago uso de la *regresión lasso* para seleccionar predictores y evaluar posibles efectos de interacción que no fueron representados en este análisis exploratorio.
+Más adelante (en el documento **06-EDA2-FE.qmd**) hago uso de la *regresión lasso* para seleccionar predictores y evaluar posibles efectos de interacción que no fueron representados en este análisis exploratorio.
 
 ::: {.panel-tabset}
 
@@ -1711,3 +1711,1178 @@ df_pca_southk2 |>
 ```
 
 :::
+
+# USA National Phenology Network
+
+- En este punto voy a realizar análisis exploratorio con los datos suministrados por *USA National Phenology Network*.
+- Como no hay información de variables bioclimáticas para estas coordenadas voy a agregar la información climática que fue suministrada inicialmente. Tampoco se tiene en cuenta la variable *`shrubs`* porque todos sus valores están en cero.
+- Desconozco el significado o implicación práctica de algunas variables de los datos iniciales suministrados por *NPN*, también hay variables que no son necesarias para el abordaje que implemento, por tal motivo no tengo en cuenta las siguientes variables:
+  - `Phenophase_Description`
+  - `Species_ID`
+  - `Genus`
+  - `Common_Name`
+  - `Kingdom`
+  - `Phenophase_ID`
+  - `Phenophase_Description`
+  - `NumDays_Since_Prior_No`
+  - `First_Yes_Year`
+  - `First_Yes_Month`
+  - `First_Yes_Day`
+  - `First_Yes_Julian_Date`
+  - `Last_Yes_Julian_Date`
+  - `Last_Yes_Year`
+  - `Last_Yes_Month`
+  - `Last_Yes_Day`
+  - `Last_Yes_Julian_Date`
+  - `NumDays_Until_Next_No`  
+  - `AGDD_in_F`
+  - `Observation_Date`
+  - `Last_Yes_DOY`
+  - `First_Yes_DOY`
+- Con la finalidad de unificar la variable objetivo *bloom_doy* utilizo el promedio de las variables `First_Yes_DOY` y `Last_Yes_DOY` en los datos *USA-NPN_individual_phenometrics_data.csv*. Estas dos variables también hacen parte de la lista de variables excluidas.
+- Uno las dos bases de datos suministradas por *NPN* y a esta información le agrego los datos *fijos* que se obtuvieron para cada coordenada. La base de datos final queda con 4101 filas (en total 152 coordenadas diferentes) y 43 columnas. 
+- Con ayuda de Google Maps y [bboxfinder](https://bboxfinder.com/#0.000000,0.000000,0.000000,0.000000) Verifiqué cada una de las 152 coordenadas únicas y extraje dos variables a partir de esas coordenadas: el país y la ciudad (contiene el estado). Esta información la agrego a los datos iniciales para realizar comparaciones por países o estados de un mismo país.
+
+## Data integration
+
+```{r}
+# External data NPN
+data_npn_fixed <-
+  df_full |>
+  filter(country == "USA-NPN") |>
+  select(-contains("bio"),
+         -c(shrubs, location, country, year, bloom_date,
+            bloom_doy, alt)) |> 
+  distinct(lat, long, .keep_all = TRUE)
+
+# NPN
+var_drop <-
+  c(
+    "Phenophase_Description",
+    "Species_ID",
+    "Genus",
+    "Common_Name",
+    "Kingdom",
+    "Phenophase_ID",
+    "Phenophase_Description",
+    "NumDays_Since_Prior_No",
+    "First_Yes_Year",
+    "First_Yes_Month",
+    "First_Yes_Day",
+    "First_Yes_Julian_Date",
+    "Last_Yes_Julian_Date",
+    "Last_Yes_Year",
+    "Last_Yes_Month",
+    "Last_Yes_Day",
+    "Last_Yes_Julian_Date",
+    "NumDays_Until_Next_No",
+    "AGDD_in_F",
+    "Last_Yes_DOY",
+    "First_Yes_DOY"
+  )
+
+data_npn1 <-
+  read_csv("../data/USA-NPN_individual_phenometrics_data.csv") |>
+  mutate(
+    Observation_Date = str_c(First_Yes_Month, "-", First_Yes_Day, "-", First_Yes_Year),
+    Observation_Date = mdy(Observation_Date),
+    bloom_doy = (Last_Yes_DOY + First_Yes_DOY) / 2
+  ) |>
+  distinct_all() |>
+  rename(lat = Latitude,
+         long = Longitude,
+         alt = Elevation_in_Meters) |>
+  select(!all_of(var_drop)) |> 
+  relocate(Observation_Date,
+           Site_ID,
+           Individual_ID,
+           Species,
+           bloom_doy,
+           everything())
+
+data_npn2 <- 
+  read_csv("../data/USA-NPN_status_intensity_observations_data.csv") |> 
+  mutate(
+    Observation_Date = mdy(Observation_Date),
+    bloom_doy = Day_of_Year
+  ) |>
+  distinct_all() |>
+  rename(lat = Latitude,
+         long = Longitude,
+         alt = Elevation_in_Meters) |>
+  select(all_of(names(data_npn1))) |> 
+  relocate(Observation_Date,
+           Site_ID,
+           Individual_ID,
+           Species,
+           bloom_doy,
+           everything())
+
+# Join data NPN + data "fixed" or "static"
+data_npn <- bind_rows(data_npn1, data_npn2) |> 
+  left_join(data_npn_fixed, by = c("lat", "long")) |> 
+  distinct_all()
+
+# Countries vector
+countries <-
+  c(
+    "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "China",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Japan",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "China",
+     "USA",
+     "USA",
+     "China",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "Canada",
+     "USA"
+  )
+
+# Cities vector
+cities <-
+  c(
+    "Fayetteville, North Carolina",
+     "Raleigh, North Carolina",
+     "Washington D.C.",
+     "Knoxville, Tennessee",
+     "San francisco California",
+     "Roanoke, Virginia",
+     "Burlington, Vermont",
+     "Gatlinburg, Tennessee",
+     "Pigeon Forge, Tennessee",
+     "Denver, Colorado",
+     "New York, New York",
+     "Evansville, Indiana",
+     "Boston, Massachusetts",
+     "Fargo, North Dakota",
+     "Charlotte, North Carolina",
+     "Kansas City, Missouri",
+     "New York, New York",
+     "Duluth, Minnesota",
+     "Thunder Bay, Ontario",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Newport, Oregon",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Alexandria, Virginia",
+     "Alexandria, Virginia",
+     "New York, New York",
+     "New York, New York",
+     "New York, New York",
+     "Alexandria, Virginia",
+     "New York, New York",
+     "Minneapolis, Minnesota",
+     "London, Kentucky",
+     "Hagerstown, Maryland",
+     "London, Kentucky",
+     "Nashville, Tennessee",
+     "Philadelphia, Pennsylvania",
+     "Allentown, Pennsylvania",
+     "New York, New York",
+     "Sudbury, Ontario",
+     "Philadelphia, Pennsylvania",
+     "Roanoke, Virginia",
+     "Denver, Colorado",
+     "Lexington, Kentucky",
+     "Indianapolis, Indiana",
+     "Denver, Colorado",
+     "Chengdu, Sichuan",
+     "New York, New York",
+     "Sacramento, California",
+     "Asheville, North Carolina",
+     "New York, New York",
+     "Salem, Oregon",
+     "Seattle, Washington",
+     "Seattle, Washington",
+     "Salem, Oregon",
+     "Portland, Oregon",
+     "Seattle, Washington",
+     "Seattle, Washington",
+     "Tacoma, Washington",
+     "Muncie, Ind.",
+     "Kyoto, Kyoto",
+     "Redmond, Washington",
+     "Salem, Oregon",
+     "Northampton, Massachusetts",
+     "Asheville, North Carolina",
+     "Salem, Oregon",
+     "Raleigh, North Carolina",
+     "Albany, New York",
+     "Duluth, Minnesota",
+     "New York, New York",
+     "New York, New York",
+     "Providence, Rhode Island",
+     "Seattle, Washington",
+     "Greeley, Colorado",
+     "Lexington, Kentucky",
+     "Portland, Oregon",
+     "Columbus, Ohio",
+     "North Bend, Washington",
+     "Denver, Colorado",
+     "Seattle, Washington",
+     "Sacramento, California",
+     "Klamath Falls, Oregon",
+     "Reno, Nevada",
+     "Edmonton, Alberta",
+     "Eugene, Oregon",
+     "Corvallis, Oregon",
+     "Longview, Washington",
+     "Port Angeles, Washington",
+     "Vancouver, British Columbia",
+     "Salem, Oregon",
+     "Albany, Oregon",
+     "Portland, Oregon",
+     "Lebanon, Virginia",
+     "Asheville, North Carolina",
+     "Boston, Massachusetts",
+     "Baltimore, Maryland",
+     "Newark, New Jersey",
+     "San francisco California",
+     "New York, New York",
+     "Okinawa",
+     "Lexington, Kentucky",
+     "New York, New York",
+     "Dalian, Liaoning",
+     "Fayetteville, North Carolina",
+     "Raleigh, North Carolina",
+     "Goldsboro, North Carolina",
+     "Buffalo, New York",
+     "Newburgh, New York",
+     "Amherst, Massachusetts",
+     "Buffalo, New York",
+     "New York, New York",
+     "Washington D.C.",
+     "Providence, Rhode Island",
+     "Cambridge, Massachusetts",
+     "Atlantic City, New Jersey",
+     "Newport, Oregon",
+     "Lexington, Kentucky",
+     "New York, New York",
+     "Portland, Oregon",
+     "Greenfield, Massachusetts",
+     "Riverhead, New York",
+     "Raleigh, North Carolina",
+     "New York, New York",
+     "New York, New York",
+     "Allentown, Pennsylvania",
+     "Williamsport, Pennsylvania",
+     "Baltimore, Maryland",
+     "Salt Lake City, Utah",
+     "Lexington, Kentucky",
+     "Providence, Rhode Island",
+     "Newark, New Jersey",
+     "Harrisburg, Pennsylvania",
+     "Philadelphia, Pennsylvania",
+     "Johnson City, Tennessee",
+     "Syracuse, New York",
+     "Wilmington, Delaware",
+     "Vancouver, British Columbia",
+     "Chicago, Illinois",
+     "Burlington, Vermont",
+     "Boston, Massachusetts",
+     "Portland, Oregon",
+     "Toronto, Ontario",
+     "Niagara Falls, Ontario",
+     "Eugene, Oregon"
+  )
+
+data_npn <-
+  data_npn |>
+  left_join(
+    data_npn |>
+      distinct(State, lat, long) |>
+      mutate(country = countries,
+             city = cities),
+    by = c("State", "lat", "long")
+  )
+
+# Export data
+write_parquet(data_npn, "../external-data/df_npn_usa.parquet")
+
+data_npn |> head()
+```
+
+
+## Distribution of variables (external data)
+
+- **Nota:** como estas variables son *fijas*, para cada coordenada se filtraron registros diferentes para latitud y longitud.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 8
+#| column: page-inset-right
+data_npn_fixed |> 
+  pivot_longer(cols = where(is.numeric)) |> 
+  ggplot(aes(x = value)) +
+  facet_wrap(~name, scales = "free", ncol = 4) +
+  geom_histogram(color = "black")
+```
+
+## Distribution of variables (internal data)
+
+- Para este gráfico filtro los datos que sean mayores a -100, ya que por alguna razón hay datos con valores negativos. Supongo que son registros con ausencia de datos y por esa razón se asingó dicho valor (-9999).
+- Estas variables son dinámicas y cambian con el tiempo, a diferencia de las anteriores que son fijas.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 8
+#| column: page-inset-right
+data_npn |> 
+  select(!all_of(names(data_npn_fixed)))|> 
+  select(-c(Site_ID, Individual_ID)) |> 
+  pivot_longer(cols = where(is.numeric)) |> 
+  filter(value > -100) |> 
+  ggplot(aes(x = value)) +
+  facet_wrap(~name, scales = "free", ncol = 4) +
+  geom_histogram(color = "black")
+```
+
+## DOY distribution by species
+
+- En el gráfico anterior se observa alta dispersión en la variable respuesta *bloom_doy*, por esa razón en el siguiente gráfico comparo la distribución por especie.
+
+```{r}
+#| fig-width: 4
+#| fig-height: 6.5
+#| layout-nrow: 1
+#| column: screen-inset-shaded
+
+data_npn |> 
+  ggplot(aes(x = bloom_doy)) +
+  facet_wrap(~Species, ncol = 1, scales = "free_y") +
+  geom_histogram(color = "black") +
+  geom_rug() +
+  labs(x = "Bloom DOY", y = "Count",
+       title = "DOY distribution by specie",
+       subtitle = "Original scale")
+
+data_npn |> 
+  ggplot(aes(x = bloom_doy)) +
+  facet_wrap(~Species, ncol = 1, scales = "free_y") +
+  geom_histogram(color = "black") +
+  geom_rug() +
+  scale_y_log10() +
+  labs(x = "Bloom DOY", y = "Count",
+       title = "DOY distribution by specie",
+       subtitle = "Original scale")
+```
+
+## DOY distribution by species and state
+
+- En el gráfico anterior se sigue observando alta dispersión en la variable respuesta *bloom_doy*, por esa razón en el siguiente gráfico comparo la distribución por especie y `State`.
+- Filtro estados con 5 o más registros para contar con un mínimo de información y lograr representar la distribución.
+
+```{r}
+list_species <- unique(data_npn$Species)
+```
+
+::: {.panel-tabset}
+
+### `r list_species[1]`
+
+```{r}
+#| fig-width: 5.2
+#| fig-height: 4.5
+
+data_npn |>
+  filter(Species == list_species[1]) |>
+  mutate(State = str_c(State, " - ", city)) |>
+  group_by(State) |>
+  mutate(flag_n = n()) |>
+  ungroup() |>
+  filter(flag_n >= 5) |>
+  ggplot(aes(x = State, y = bloom_doy)) +
+  geom_boxplot() +
+  labs(
+    y = "Bloom DOY",
+    x = "",
+    title = "DOY distribution by state",
+    subtitle = glue("{list_species[1]}")
+  ) +
+  coord_flip() +
+  scale_y_log10()
+```
+
+### `r list_species[2]`
+
+```{r}
+#| fig-width: 5.2
+#| fig-height: 4.5
+
+data_npn |>
+  filter(Species == list_species[2]) |>
+  mutate(State = str_c(State, " - ", city)) |>
+  group_by(State) |>
+  mutate(flag_n = n()) |>
+  ungroup() |>
+  filter(flag_n >= 5) |>
+  ggplot(aes(x = State, y = bloom_doy)) +
+  geom_boxplot() +
+  labs(
+    y = "Bloom DOY",
+    x = "",
+    title = "DOY distribution by state",
+    subtitle = glue("{list_species[2]}")
+  ) +
+  coord_flip() +
+  scale_y_log10()
+```
+
+### `r list_species[3]`
+
+```{r}
+#| fig-width: 5.2
+#| fig-height: 4.5
+
+data_npn |>
+  filter(Species == list_species[3]) |>
+  mutate(State = str_c(State, " - ", city)) |>
+  group_by(State) |>
+  mutate(flag_n = n()) |>
+  ungroup() |>
+  filter(flag_n >= 5) |>
+  ggplot(aes(x = State, y = bloom_doy)) +
+  geom_boxplot() +
+  labs(
+    y = "Bloom DOY",
+    x = "",
+    title = "DOY distribution by state",
+    subtitle = glue("{list_species[3]}")
+  ) +
+  coord_flip() +
+  scale_y_log10()
+```
+
+### `r list_species[4]`
+
+```{r}
+#| fig-width: 5.2
+#| fig-height: 4
+
+data_npn |>
+  filter(Species == list_species[4]) |>
+  mutate(State = str_c(State, " - ", city)) |>
+  group_by(State) |>
+  mutate(flag_n = n()) |>
+  ungroup() |>
+  filter(flag_n >= 5) |>
+  ggplot(aes(x = State, y = bloom_doy)) +
+  geom_boxplot() +
+  labs(
+    y = "Bloom DOY",
+    x = "",
+    title = "DOY distribution by state",
+    subtitle = glue("{list_species[4]}")
+  ) +
+  coord_flip() +
+  scale_y_log10()
+```
+
+### `r list_species[5]`
+
+```{r}
+#| fig-width: 5.2
+#| fig-height: 4
+
+data_npn |>
+  filter(Species == list_species[5]) |>
+  mutate(State = str_c(State, " - ", city)) |>
+  group_by(State) |>
+  mutate(flag_n = n()) |>
+  ungroup() |>
+  filter(flag_n >= 5) |>
+  ggplot(aes(x = State, y = bloom_doy)) +
+  geom_boxplot() +
+  labs(
+    y = "Bloom DOY",
+    x = "",
+    title = "DOY distribution by state",
+    subtitle = glue("{list_species[5]}")
+  ) +
+  coord_flip() +
+  scale_y_log10()
+```
+
+:::
+
+## Temperature vs DOY
+
+::: {.panel-tabset}
+
+### `r list_species[1]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 3.8 
+#| column: page-inset-right  
+
+data_npn |> 
+  filter(Species == list_species[1]) |>
+  select(bloom_doy, contains("Tm")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[1]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[2]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 3.8 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[2]) |>
+  select(bloom_doy, contains("Tm")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[2]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[3]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 3.8 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[3]) |>
+  select(bloom_doy, contains("Tm")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[3]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[4]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 3.8 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[4]) |>
+  select(bloom_doy, contains("Tm")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[4]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[5]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 3.8 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[5]) |>
+  select(bloom_doy, contains("Tm")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[5]}")) +
+  scale_y_log10() 
+```
+
+::: 
+
+## Precipitation vs DOY
+
+::: {.panel-tabset}
+
+### `r list_species[1]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 2.5 
+#| column: page-inset-right  
+
+data_npn |> 
+  filter(Species == list_species[1]) |>
+  select(bloom_doy, contains("Prcp_")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[1]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[2]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 2.5 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[2]) |>
+  select(bloom_doy, contains("Prcp_")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[2]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[3]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 2.5 
+#| column: page-inset-right    
+data_npn |> 
+  filter(Species == list_species[3]) |>
+  select(bloom_doy, contains("Prcp_")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[3]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[4]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 2.5 
+#| column: page-inset-right    
+data_npn |> 
+  filter(Species == list_species[4]) |>
+  select(bloom_doy, contains("Prcp_")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[4]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[5]`
+
+```{r}
+#| fig-width: 7.5
+#| fig-height: 2.5 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[5]) |>
+  select(bloom_doy, contains("Prcp_")) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[5]}")) +
+  scale_y_log10() 
+```
+
+::: 
+
+## Others vs DOY
+
+- La asimetría en estas variables dificulta o
+
+::: {.panel-tabset}
+
+### `r list_species[1]`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2.5 
+#| column: page-inset-right  
+
+data_npn |> 
+  filter(Species == list_species[1]) |>
+  select(bloom_doy, lat, long, alt, AGDD, Daylength) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 5) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[1]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[2]`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2.5 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[2]) |>
+  select(bloom_doy, lat, long, alt, AGDD, Daylength) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 5) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[2]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[3]`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2.5 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[3]) |>
+  select(bloom_doy, lat, long, alt, AGDD, Daylength) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 5) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[3]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[4]`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2.5 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[4]) |>
+  select(bloom_doy, lat, long, alt, AGDD, Daylength) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 5) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[4]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[5]`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2.5 
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[5]) |>
+  select(bloom_doy, lat, long, alt, AGDD, Daylength) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 5) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[5]}")) +
+  scale_y_log10() 
+```
+
+::: 
+
+## Fixed variables vs DOY
+
+::: {.panel-tabset}
+
+### `r list_species[1]`
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6.5
+#| column: page-inset-right  
+
+data_npn |> 
+  filter(Species == list_species[1]) |>
+  select(bloom_doy, `bdod_0-5cm_mean`:water) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[1]}")) +
+  scale_y_log10()
+```
+
+### `r list_species[2]`
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6.5
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[2]) |>
+  select(bloom_doy, `bdod_0-5cm_mean`:water) |>  
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[2]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[3]`
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6.5
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[3]) |>
+  select(bloom_doy, `bdod_0-5cm_mean`:water) |> 
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[3]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[4]`
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6.5
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[4]) |>
+  select(bloom_doy, `bdod_0-5cm_mean`:water) |>  
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[4]}")) +
+  scale_y_log10() 
+```
+
+### `r list_species[5]`
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6.5
+#| column: page-inset-right  
+data_npn |> 
+  filter(Species == list_species[5]) |>
+  select(bloom_doy, `bdod_0-5cm_mean`:water) |>  
+  pivot_longer(cols = -c(bloom_doy))  |>
+  filter(value > -100) |> 
+  ggplot(aes(x = value, y = bloom_doy)) +
+  facet_wrap( ~ name, scales = "free", ncol = 4) +
+  geom_point()  +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ ns(x, df = 2),
+    color = "red",
+    size = 0.5
+  ) +
+  labs(x = "", y = "DOY",
+       title = glue("{list_species[5]}")) +
+  scale_y_log10() 
+```
+
+::: 
+
