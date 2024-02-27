@@ -17,8 +17,11 @@ extractPhotoperiod <- function(data) {
     map(
       .f = function(x = .x) {
         res =
-          data.frame(photoperiod = photoperiod(date_range, latitude = x),
-                     lat = x)
+          data.frame(
+            lat = x,
+            date_photoperiod = date_range,
+            photoperiod = photoperiod(date_range, latitude = x)
+          )
         return(res)
       }
     ) |>
