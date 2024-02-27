@@ -94,11 +94,11 @@ data_npn <- bind_rows(data_npn1, data_npn2)
 
 # Full data
 
-- To the initial data provided for the competition I add by coordinates (longitude and latitude) the SoilGrids information, the complementary information (*other*) and the bioclimatic variables. Duplicate records are eliminated in this final table. The final table (`df_full`) is exported for further analysis. The total records in this table is 17966. **Note:** I mixed the data only for ease of handling, but I am aware that in the data provided by the *National Phenology Network* there are other types of species.
-- Data provided by the *National Phenology Network* is included in the `df_full` table.
+- To the initial data provided for the competition I add by coordinates (longitude and latitude) the SoilGrids information, the complementary information (*other*) and the bioclimatic variables. Duplicate records are eliminated in this final table. The final table (`df_full`) is exported for further analysis. The total records in this table is 17966. **Note:** I mixed the data only for ease of handling, but I am aware that in the data provided by the *National Phenology Network* there are other types of species. I extract a variable named `country` that the country has, I do this in order to evaluate behavioral patterns in different countries and because it could be helpful to extrapolate to regions where we do not have historical flowering records. To differentiate the *NPN* data for the USA, I label it in the `country` variable as `USA-NPN` and the data for Washington DC as `USA-WDC`.
+- Data provided by the *National Phenology Network* is included in the `df_full` table. I keep the information supplied by *NPN* separate and export the cleaned table to be used in separate analyses.
 - I keep the weather data in a separate database (`df_weather`). There are more than five million records and they have different temporalities.
 - I keep photoperiod information in a separate database (`df_photoperiod`).
-- I export the three files`df_full`, `df_weather` and `df_photoperiod` in *.parquet* format for further analysis.
+- I export four files: `df_full`, `df_weather`, `df_photoperiod` and `data_npn` in *.parquet* format for further analysis.
 
 ```{r}
 df_initial_cherry <-
@@ -136,7 +136,21 @@ df_full <-
   left_join(df_soilgrids, by = c("long", "lat")) |>
   left_join(df_other, by = c("long", "lat")) |>
   left_join(df_bioclim, by = c("long", "lat")) |> 
-  distinct_all()
+  distinct_all() |> 
+  mutate(
+    country = 
+      case_when(
+        str_detect(location, "Japan") ~ "Japan",
+        str_detect(location, "kyoto") ~ "Japan",
+        str_detect(location, "liestal") ~ "Switzerland",
+        str_detect(location, "Switzerland") ~ "Switzerland",
+        str_detect(location, "South Korea") ~ "South Korea",
+        str_detect(location, "vancouver") ~ "Canada",
+        str_detect(location, "washingtondc") ~ "USA-WDC",
+        str_detect(location, "NPN") ~ "USA-NPN"
+      )
+  ) |> 
+  relocate(location, country, everything())
 
 write_parquet(df_full, "../external-data/df_full.parquet")
 
@@ -183,3 +197,440 @@ write_parquet(df_photoperiod, "../external-data/df_photoperiod.parquet")
 df_photoperiod |> head()
 ```
 
+# Data USA National Phenology Network
+
+- Since there is no information on bioclimatic variables for these coordinates, I am going to add the climatic information that was initially provided. The variable *`shrubs`* is also not taken into account because all its values are zero.
+- I do not know the meaning or practical implication of some variables in the initial data provided by *NPN*, there are also variables that are not necessary for the approach that I implement, for this reason I do not take into account the following variables:
+  - `Phenophase_Description`
+  - `Species_ID`
+  - `Genus`
+  - `Common_Name`
+  - `Kingdom`
+  - `Phenophase_ID`
+  - `Phenophase_Description`
+  - `NumDays_Since_Prior_No`
+  - `First_Yes_Year`
+  - `First_Yes_Month`
+  - `First_Yes_Day`
+  - `First_Yes_Julian_Date`
+  - `Last_Yes_Julian_Date`
+  - `Last_Yes_Year`
+  - `Last_Yes_Month`
+  - `Last_Yes_Day`
+  - `Last_Yes_Julian_Date`
+  - `NumDays_Until_Next_No`  
+  - `AGDD_in_F`
+  - `Observation_Date`
+  - `Last_Yes_DOY`
+  - `First_Yes_DOY`
+- In order to unify the target variable *bloom_doy* I use the average of the variables `First_Yes_DOY` and `Last_Yes_DOY` in the data *USA-NPN_individual_phenometrics_data.csv*. These two variables are also part of the list of excluded variables.
+- I join the two databases provided by *NPN* and to this information I add the *fixed* data that was obtained for each coordinate. The final database has 4101 rows (a total of 152 different coordinates) and 43 columns.
+- With the help of Google Maps and [bboxfinder](https://bboxfinder.com/#0.000000,0.000000,0.000000,0.000000) I verified each of the 152 unique coordinates and extracted two variables from those coordinates: the country and the city (contains state). I add this information to the initial data to make comparisons by countries or states of the same country. **Important note** I have doubts with a particular coordinate that is located in the state *NY*, however, when I validate the coordinate I get that it is in Ontario, Canada.
+
+```{r}
+# External data NPN
+data_npn_fixed <-
+  df_full |>
+  filter(country == "USA-NPN") |>
+  select(-contains("bio"),
+         -c(shrubs, location, country, year, bloom_date,
+            bloom_doy, alt)) |> 
+  distinct(lat, long, .keep_all = TRUE)
+
+# NPN
+var_drop <-
+  c(
+    "Phenophase_Description",
+    "Species_ID",
+    "Genus",
+    "Common_Name",
+    "Kingdom",
+    "Phenophase_ID",
+    "Phenophase_Description",
+    "NumDays_Since_Prior_No",
+    "First_Yes_Year",
+    "First_Yes_Month",
+    "First_Yes_Day",
+    "First_Yes_Julian_Date",
+    "Last_Yes_Julian_Date",
+    "Last_Yes_Year",
+    "Last_Yes_Month",
+    "Last_Yes_Day",
+    "Last_Yes_Julian_Date",
+    "NumDays_Until_Next_No",
+    "AGDD_in_F",
+    "Last_Yes_DOY",
+    "First_Yes_DOY"
+  )
+
+data_npn1 <-
+  read_csv("../data/USA-NPN_individual_phenometrics_data.csv") |>
+  mutate(
+    Observation_Date = str_c(First_Yes_Month, "-", First_Yes_Day, "-", First_Yes_Year),
+    Observation_Date = mdy(Observation_Date),
+    bloom_doy = (Last_Yes_DOY + First_Yes_DOY) / 2
+  ) |>
+  distinct_all() |>
+  rename(lat = Latitude,
+         long = Longitude,
+         alt = Elevation_in_Meters) |>
+  select(!all_of(var_drop)) |> 
+  relocate(Observation_Date,
+           Site_ID,
+           Individual_ID,
+           Species,
+           bloom_doy,
+           everything())
+
+data_npn2 <- 
+  read_csv("../data/USA-NPN_status_intensity_observations_data.csv") |> 
+  mutate(
+    Observation_Date = mdy(Observation_Date),
+    bloom_doy = Day_of_Year
+  ) |>
+  distinct_all() |>
+  rename(lat = Latitude,
+         long = Longitude,
+         alt = Elevation_in_Meters) |>
+  select(all_of(names(data_npn1))) |> 
+  relocate(Observation_Date,
+           Site_ID,
+           Individual_ID,
+           Species,
+           bloom_doy,
+           everything())
+
+# Join data NPN + data "fixed" or "static"
+data_npn <- bind_rows(data_npn1, data_npn2) |> 
+  left_join(data_npn_fixed, by = c("lat", "long")) |> 
+  distinct_all()
+
+# Countries vector
+countries <-
+  c(
+    "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "China",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Japan",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "China",
+     "USA",
+     "USA",
+     "China",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "USA",
+     "USA",
+     "USA",
+     "USA",
+     "Canada",
+     "Canada",
+     "USA"
+  )
+
+# Cities vector
+cities <-
+  c(
+    "Fayetteville, North Carolina",
+     "Raleigh, North Carolina",
+     "Washington D.C.",
+     "Knoxville, Tennessee",
+     "San francisco California",
+     "Roanoke, Virginia",
+     "Burlington, Vermont",
+     "Gatlinburg, Tennessee",
+     "Pigeon Forge, Tennessee",
+     "Denver, Colorado",
+     "New York, New York",
+     "Evansville, Indiana",
+     "Boston, Massachusetts",
+     "Fargo, North Dakota",
+     "Charlotte, North Carolina",
+     "Kansas City, Missouri",
+     "New York, New York",
+     "Duluth, Minnesota",
+     "Thunder Bay, Ontario",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Newport, Oregon",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Washington D.C.",
+     "Alexandria, Virginia",
+     "Alexandria, Virginia",
+     "New York, New York",
+     "New York, New York",
+     "New York, New York",
+     "Alexandria, Virginia",
+     "New York, New York",
+     "Minneapolis, Minnesota",
+     "London, Kentucky",
+     "Hagerstown, Maryland",
+     "London, Kentucky",
+     "Nashville, Tennessee",
+     "Philadelphia, Pennsylvania",
+     "Allentown, Pennsylvania",
+     "New York, New York",
+     "Sudbury, Ontario",
+     "Philadelphia, Pennsylvania",
+     "Roanoke, Virginia",
+     "Denver, Colorado",
+     "Lexington, Kentucky",
+     "Indianapolis, Indiana",
+     "Denver, Colorado",
+     "Chengdu, Sichuan",
+     "New York, New York",
+     "Sacramento, California",
+     "Asheville, North Carolina",
+     "New York, New York",
+     "Salem, Oregon",
+     "Seattle, Washington",
+     "Seattle, Washington",
+     "Salem, Oregon",
+     "Portland, Oregon",
+     "Seattle, Washington",
+     "Seattle, Washington",
+     "Tacoma, Washington",
+     "Muncie, Ind.",
+     "Kyoto, Kyoto",
+     "Redmond, Washington",
+     "Salem, Oregon",
+     "Northampton, Massachusetts",
+     "Asheville, North Carolina",
+     "Salem, Oregon",
+     "Raleigh, North Carolina",
+     "Albany, New York",
+     "Duluth, Minnesota",
+     "New York, New York",
+     "New York, New York",
+     "Providence, Rhode Island",
+     "Seattle, Washington",
+     "Greeley, Colorado",
+     "Lexington, Kentucky",
+     "Portland, Oregon",
+     "Columbus, Ohio",
+     "North Bend, Washington",
+     "Denver, Colorado",
+     "Seattle, Washington",
+     "Sacramento, California",
+     "Klamath Falls, Oregon",
+     "Reno, Nevada",
+     "Edmonton, Alberta",
+     "Eugene, Oregon",
+     "Corvallis, Oregon",
+     "Longview, Washington",
+     "Port Angeles, Washington",
+     "Vancouver, British Columbia",
+     "Salem, Oregon",
+     "Albany, Oregon",
+     "Portland, Oregon",
+     "Lebanon, Virginia",
+     "Asheville, North Carolina",
+     "Boston, Massachusetts",
+     "Baltimore, Maryland",
+     "Newark, New Jersey",
+     "San francisco California",
+     "New York, New York",
+     "Okinawa",
+     "Lexington, Kentucky",
+     "New York, New York",
+     "Dalian, Liaoning",
+     "Fayetteville, North Carolina",
+     "Raleigh, North Carolina",
+     "Goldsboro, North Carolina",
+     "Buffalo, New York",
+     "Newburgh, New York",
+     "Amherst, Massachusetts",
+     "Buffalo, New York",
+     "New York, New York",
+     "Washington D.C.",
+     "Providence, Rhode Island",
+     "Cambridge, Massachusetts",
+     "Atlantic City, New Jersey",
+     "Newport, Oregon",
+     "Lexington, Kentucky",
+     "New York, New York",
+     "Portland, Oregon",
+     "Greenfield, Massachusetts",
+     "Riverhead, New York",
+     "Raleigh, North Carolina",
+     "New York, New York",
+     "New York, New York",
+     "Allentown, Pennsylvania",
+     "Williamsport, Pennsylvania",
+     "Baltimore, Maryland",
+     "Salt Lake City, Utah",
+     "Lexington, Kentucky",
+     "Providence, Rhode Island",
+     "Newark, New Jersey",
+     "Harrisburg, Pennsylvania",
+     "Philadelphia, Pennsylvania",
+     "Johnson City, Tennessee",
+     "Syracuse, New York",
+     "Wilmington, Delaware",
+     "Vancouver, British Columbia",
+     "Chicago, Illinois",
+     "Burlington, Vermont",
+     "Boston, Massachusetts",
+     "Portland, Oregon",
+     "Toronto, Ontario",
+     "Niagara Falls, Ontario",
+     "Eugene, Oregon"
+  )
+
+data_npn <-
+  data_npn |>
+  left_join(
+    data_npn |>
+      distinct(State, lat, long) |>
+      mutate(country = countries,
+             city = cities),
+    by = c("State", "lat", "long")
+  )
+
+# Export data
+write_parquet(data_npn, "../external-data/df_npn_usa.parquet")
+
+data_npn |> head()
+```

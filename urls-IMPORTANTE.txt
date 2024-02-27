@@ -1,0 +1,5 @@
+- https://www.epa.gov/climate-indicators/climate-change-indicators-leaf-and-bloom-dates
+- https://www.usanpn.org/data/maps/spring
+- https://www.usanpn.org/data/maps/AGDD
+- https://www.usanpn.org/data/maps/land_surface_phenology
+- https://www.usanpn.org/data/visualizations
