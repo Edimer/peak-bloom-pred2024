@@ -1,0 +1,427 @@
+---
+title: "International Cherry Blossom Prediction Competition"
+subtitle: "EDA 2 and Feature Engineering"
+author: "Edimer David Jaramillo"
+date: "`r lubridate::now()`"
+lang: en-US
+format:
+  html:
+    page-layout: article
+    toc: true
+    code-fold: true
+    df-print: paged
+    toc-location: left
+    number-depth: 4
+    theme: yeti
+    code-copy: true
+    highlight-style: github
+    embed-resources: true
+    code-tools:
+      source: true    
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE, 
+                      message = FALSE,
+                      fig.align = 'center')
+```
+
+# Document description
+
+- En este documento el análisis exploratorio de datos está orientado a variables que cambian a través del tiempo. En el documento **05-EDA1.qmd** varios de los resultados hacen uso de la variable respuesta `bloom_doy` resumida con la mediana, en este documento el objetivo es explorar la variación temporal de la variable respuesta y la asociación con variables climáticas (`df_weather`) y fotoperíodo (`df_photoperiod`).
+
+# Libraries and setup
+
+```{r}
+# Libraries
+library(tidyverse)
+library(arrow)
+library(glue)
+library(reactable)
+library(latex2exp)
+library(splines)
+library(forecast)
+
+# Colors
+colors_custom <-
+  c("#014e25",
+    "#800080",
+    "#ffa500",
+    "#008080",
+    "#ff6347",
+    "#0000cd")
+
+# Theme ggplot2
+theme_set(theme_bw() + theme(legend.position = "top"))
+
+# Functions
+
+## These functions are not required in this document
+functions_exclude <-
+  c(
+    "../source/r/module-EDA",
+    "../source/r/extractPhotoperiod.R",
+    "../source/r/getWeatherPOWER.R"
+  )
+
+dir_functions <-
+  fs::dir_ls("../source/r/")
+
+c(dir_functions[!dir_functions %in% functions_exclude],
+  fs::dir_ls("../source/r/module-EDA/")) |>
+  walk(.f = source)
+
+# Inputs
+countries <- c("Japan", "Switzerland", "South Korea", "USA-WDC")
+```
+
+# Data
+
+- En total hay 490 coordenadas diferentes.
+- **`df_full`:** datos completos con ubicaciones (location y country), coordenadas y variable respuesta. Selecciono sólo las variables de interés para este análisis.
+  - **Total de filas:** 17966
+  - **Total de columnas:** 8
+- **`df_weather`:** datos climáticos para cada coordenada
+  - **Total de filas:** 7738651
+  - **Total de columnas:** 17 
+  - **Rango de fechas:** 1981-01-01 hasta 2024-02-25
+- **df_photoperiod`:** datos de fotoperíodo para cada coordenada
+  - **Total de filas:** 9456891
+  - **Total de columnas:** 3 
+  - **Rango de fechas:** 0811-04-02 hasta 2023-12-30
+- De la información suministrada por *NPN* (`df_npn`) tomo el `Site_ID == 32789` y la `Species_ID == 228` para identificar los registros del sitio de interés en Nueva York. 
+
+
+```{r}
+# Data with coordinates and response variable
+df_full <- read_parquet("../external-data/df_full.parquet") |>
+  select(location, country, lat, long, year, bloom_date, bloom_doy) |>
+  distinct_all() |>
+  mutate(
+    location = if_else(
+      location == "Switzerland/Z\xfcrich-Albisg\xfcetli",
+      true = "Switzerland/Zürich-Albisgüetli",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/M\xf6hlin",
+      true = "Switzerland/Möhlin",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/W\xe4denswil",
+      true = "Switzerland/Wädenswil",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Z\xfcrich-MeteoSchweiz",
+      true = "Switzerland/Zürich-MeteoSchweiz",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Z\xfcrich-Witikon",
+      true = "Switzerland/Zürich-Witikon",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Gr\xfcsch",
+      true = "Switzerland/Grüsch",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/N\xe4fels",
+      true = "Switzerland/Näfels",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Sch\xf6nenwerd",
+      true = "Switzerland/Schönenwerd",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/D\xf6ttingen",
+      true = "Switzerland/Döttingen",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/H\xf6fen",
+      true = "Switzerland/Höfen",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Le S\xe9pey",
+      true = "Switzerland/Le Sépey",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/La Br\xe9vine",
+      true = "Switzerland/La Brévine",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Alchenfl\xfch",
+      true = "Switzerland/Alchenflüh",
+      false = location
+    ),
+    location = if_else(
+      location == "Switzerland/Neuch\xe2tel",
+      true = "Switzerland/Neuchâtel",
+      false = location
+    )
+  )
+
+# Climate data
+df_weather <- read_parquet("../external-data/df_weather.parquet")
+
+# Photoperiod data
+df_photoperiod <- read_parquet("../external-data/df_photoperiod.parquet")
+
+# Data NPN
+df_npn <- read_parquet("../external-data/df_npn_usa.parquet")
+
+# Coordinates New York
+coords_ny <-
+  df_npn |>
+  filter(Site_ID == 32789) |>
+  filter(Species_ID == 228) |>
+  distinct(lat, long)
+```
+
+# Generalities
+
+- Obtengo una tabla que muestra el rango de fechas de las cuales se tiene registro por cada localización (coordenada), también se agrega el número (`n`) de años de los cuales se tiene registro de floración. 
+- El registro con fecha mínima de floración es el 01 de abril del año 812.
+- Algunas ubicaciones no cuentan con información actualizada. La coordenada *Lat: 46.52733 - Long: 8.932936* tiene 10 registros desde el año 1978 hasta 1987, siendo la coordenada con el registro "más desactualizado".
+
+```{r}
+df_full |> 
+  group_by(location, lat, long) |> 
+  reframe(min_date_doy = min(bloom_date, na.rm = TRUE),
+          max_date_doy = max(bloom_date, na.rm = TRUE),
+          n = n()) |> 
+  arrange(min_date_doy) |> 
+  mutate(across(where(is.numeric), ~ round(.x, digits = 4))) |> 
+  customReactTable()
+```
+
+# Distribution of days between flowering
+
+- Para calcular la diferencia (en días) entre la floración $t_i$ con $t_{i-1}$ tengo en cuenta coordenadas que cumplan con las siguientes características:
+  - Mínimo 2 registros $(n > 1)$
+  - Diferencia entre años igual a 1, es decir, sólo conservo coordenadas cuyas floraciones han sido reportadas con una frecuencia anual, no importa si fue hace 20 años, lo importante es que se cuente con información año a año.
+- Si llamamos $\gamma$ a la fecha de la floración (`bloom_date`)  que tiene mediciones en un año $t$, con $t = 1, 2, ..., k$, donde $k$ es el número de registros que cumplen con las dos restricciones descritas previamente, la distribución que se muestra en los siguientes gráficos es la diferencia de $\gamma_t$ con $\gamma_{t-1}$, es decir, el [operador rezago con $p = 1$](https://en.wikipedia.org/wiki/Lag_operator) sobre la diferencia en días entre floraciones. Es importante mencionar que el usuario podrá elegir el valor del rezago para generar $(\gamma_{t-p})$, en cuyo caso para la primera condición $n$ se expresa como $n = p + 1$; la segunda condición se mantiene igual independientemente del valor que tome $p$.
+
+::: {.panel-tabset}
+
+## $p = 1\ year$
+
+```{r}
+#| fig-width: 4.5
+#| fig-height: 3.5
+#| column: screen
+#| layout-nrow: 2
+
+n_lag_operator <- 1
+
+res_japan <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[1],
+    pal_colors = colors_custom
+  )
+
+res_kyoto <-
+  lagBloomDate(
+    data = df_full |> filter(str_detect(location, "kyoto|Kyoto|KYOTO")),
+    n_lag = n_lag_operator,
+    country_sel = countries[1],
+    pal_colors = colors_custom
+  )
+
+res_switzerland <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[2],
+    pal_colors = colors_custom
+  )
+
+res_southk <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[3],
+    pal_colors = colors_custom
+  )
+
+res_usa_wdc <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[4],
+    pal_colors = colors_custom
+  )
+
+res_usa_ny <-
+  lagBloomDate(
+    data = df_full |>
+      filter(lat %in% coords_ny$lat & long %in% coords_ny$long),
+    n_lag = n_lag_operator,
+    country_sel = NULL,
+    pal_colors = colors_custom
+  )
+
+res_japan$plot_diff
+res_kyoto$plot_diff +
+  labs(subtitle = glue("Kyoto: 2 coordinates with p = {n_lag_operator}"))
+res_switzerland$plot_diff
+res_southk$plot_diff
+res_usa_wdc$plot_diff
+res_usa_ny$plot_diff
+```
+
+## $p = 5\ years$
+
+```{r}
+#| fig-width: 4.5
+#| fig-height: 3.5
+#| column: screen
+#| layout: [[30,-5, 30, -5, 30], [50, 50]]
+
+n_lag_operator <- 5
+
+res_japan <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[1],
+    pal_colors = colors_custom
+  )
+
+res_kyoto <-
+  lagBloomDate(
+    data = df_full |> filter(str_detect(location, "kyoto|Kyoto|KYOTO")),
+    n_lag = n_lag_operator,
+    country_sel = countries[1],
+    pal_colors = colors_custom
+  )
+
+res_switzerland <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[2],
+    pal_colors = colors_custom
+  )
+
+res_southk <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[3],
+    pal_colors = colors_custom
+  )
+
+res_usa_wdc <-
+  lagBloomDate(
+    data = df_full,
+    n_lag = n_lag_operator,
+    country_sel = countries[4],
+    pal_colors = colors_custom
+  )
+
+res_japan$plot_diff
+res_kyoto$plot_diff +
+  labs(subtitle = glue("Kyoto: 2 coordinates with p = {n_lag_operator}"))
+res_switzerland$plot_diff
+res_southk$plot_diff
+res_usa_wdc$plot_diff
+```
+
+:::
+
+# DOY lags
+
+- En los siguientes gráficos se relaciona la variable respuesta en el año $t$ con $t-i$. A diferencia de los gráficos anteriores en estos utilizo la variable `bloom_doy` y evalúo una década, es decir, $i = 1, 2, ..., 10$.
+
+```{r}
+#| fig-width: 12
+#| fig-height: 2
+#| column: screen
+#| layout-nrow: 5
+
+# Japan
+lagsDOY(data = df_full,
+        country_sel = countries[1],
+        pal_colors = colors_custom)$plot_lags
+
+# Tokyo
+lagsDOY(data = df_full |> filter(str_detect(location, "kyoto|Kyoto|KYOTO")),
+        country_sel = countries[1],
+        pal_colors = colors_custom)$plot_lags +
+  labs(subtitle = "Kyoto")
+
+# Switzerland
+lagsDOY(data = df_full,
+        country_sel = countries[2],
+        pal_colors = colors_custom)$plot_lags
+
+# South Korea
+lagsDOY(data = df_full,
+        country_sel = countries[3],
+        pal_colors = colors_custom)$plot_lags
+
+# USA-WDC
+lagsDOY(data = df_full,
+        country_sel = countries[4],
+        pal_colors = colors_custom)$plot_lags
+```
+
+
+#  Autocorrelation function (ACF)
+
+```{r}
+#| fig-width: 4.2
+#| fig-height: 3
+#| column: screen
+#| layout-nrow: 5
+
+# Japan
+plotACFMaxDOY(data = df_full, country_sel = countries[1])$plot1
+plotACFMaxDOY(data = df_full, country_sel = countries[1])$plot2
+plotACFMaxDOY(data = df_full, country_sel = countries[1])$plot3
+
+# Tokyo
+plotACFMaxDOY(data = df_full |> filter(str_detect(location, "kyoto|Kyoto|KYOTO")),
+              country_sel = countries[1])$plot1 +
+  labs(subtitle = "Kyoto (all data)")
+plotACFMaxDOY(data = df_full |> filter(str_detect(location, "kyoto|Kyoto|KYOTO")),
+              country_sel = countries[1])$plot2 +
+  labs(subtitle = "Kyoto (all data)")
+plotACFMaxDOY(data = df_full |> filter(str_detect(location, "kyoto|Kyoto|KYOTO")),
+              country_sel = countries[1])$plot3 +
+  labs(subtitle = "Kyoto (50 years)")
+
+
+# Switzerland
+plotACFMaxDOY(data = df_full, country_sel = countries[2])$plot1
+plotACFMaxDOY(data = df_full, country_sel = countries[2])$plot2
+plotACFMaxDOY(data = df_full, country_sel = countries[2])$plot3
+
+# South Korea
+plotACFMaxDOY(data = df_full, country_sel = countries[3])$plot1
+plotACFMaxDOY(data = df_full, country_sel = countries[3])$plot2
+plotACFMaxDOY(data = df_full, country_sel = countries[3])$plot3
+
+# USA-WDC
+plotACFMaxDOY(data = df_full, country_sel = countries[4])$plot1
+plotACFMaxDOY(data = df_full, country_sel = countries[4])$plot2
+plotACFMaxDOY(data = df_full, country_sel = countries[4])$plot3
+```
+
+
