@@ -75,7 +75,10 @@ data_npn1 <- read_csv("../data/USA-NPN_individual_phenometrics_data.csv") |>
          alt = Elevation_in_Meters,
          year,
          bloom_date = Observation_Date,
-         bloom_doy = First_Yes_DOY)
+         bloom_doy = First_Yes_DOY) |> 
+  group_by(location, lat, long, alt, year) |> 
+  reframe(bloom_date = max(bloom_date, na.rm = TRUE),
+          bloom_doy = max(bloom_doy, na.rm = TRUE))
 
 data_npn2 <- read_csv("../data/USA-NPN_status_intensity_observations_data.csv") |> 
   mutate(Observation_Date = mdy(Observation_Date),
@@ -87,7 +90,10 @@ data_npn2 <- read_csv("../data/USA-NPN_status_intensity_observations_data.csv") 
          alt = Elevation_in_Meters,
          year,
          bloom_date = Observation_Date,
-         bloom_doy = Day_of_Year)
+         bloom_doy = Day_of_Year) |> 
+  group_by(location, lat, long, alt, year) |> 
+  reframe(bloom_date = max(bloom_date, na.rm = TRUE),
+          bloom_doy = max(bloom_doy, na.rm = TRUE))
 
 data_npn <- bind_rows(data_npn1, data_npn2)
 ```
@@ -202,7 +208,6 @@ df_photoperiod |> head()
 - Since there is no information on bioclimatic variables for these coordinates, I am going to add the climatic information that was initially provided. The variable *`shrubs`* is also not taken into account because all its values are zero.
 - I do not know the meaning or practical implication of some variables in the initial data provided by *NPN*, there are also variables that are not necessary for the approach that I implement, for this reason I do not take into account the following variables:
   - `Phenophase_Description`
-  - `Species_ID`
   - `Genus`
   - `Common_Name`
   - `Kingdom`
@@ -224,7 +229,7 @@ df_photoperiod |> head()
   - `Last_Yes_DOY`
   - `First_Yes_DOY`
 - In order to unify the target variable *bloom_doy* I use the average of the variables `First_Yes_DOY` and `Last_Yes_DOY` in the data *USA-NPN_individual_phenometrics_data.csv*. These two variables are also part of the list of excluded variables.
-- I join the two databases provided by *NPN* and to this information I add the *fixed* data that was obtained for each coordinate. The final database has 4101 rows (a total of 152 different coordinates) and 43 columns.
+- I join the two databases provided by *NPN* and to this information I add the *fixed* data that was obtained for each coordinate. The final database has 4101 rows (a total of 152 different coordinates) and 44 columns.
 - With the help of Google Maps and [bboxfinder](https://bboxfinder.com/#0.000000,0.000000,0.000000,0.000000) I verified each of the 152 unique coordinates and extracted two variables from those coordinates: the country and the city (contains state). I add this information to the initial data to make comparisons by countries or states of the same country. **Important note** I have doubts with a particular coordinate that is located in the state *NY*, however, when I validate the coordinate I get that it is in Ontario, Canada.
 
 ```{r}
@@ -241,7 +246,6 @@ data_npn_fixed <-
 var_drop <-
   c(
     "Phenophase_Description",
-    "Species_ID",
     "Genus",
     "Common_Name",
     "Kingdom",
@@ -634,3 +638,6 @@ write_parquet(data_npn, "../external-data/df_npn_usa.parquet")
 
 data_npn |> head()
 ```
+
+
+
