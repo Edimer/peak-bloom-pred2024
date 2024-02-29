@@ -34,26 +34,39 @@ lagsDOY <- function(data, country_sel, pal_colors) {
           arrange(year) |>
           mutate(
             lag_year = lag(year, n = 1),
-            lag1_doy = lag(bloom_doy, n = 1),
-            lag2_doy = lag(bloom_doy, n = 2),
-            lag3_doy = lag(bloom_doy, n = 3),
-            lag4_doy = lag(bloom_doy, n = 4),
-            lag5_doy = lag(bloom_doy, n = 5),
-            lag6_doy = lag(bloom_doy, n = 6),
-            lag7_doy = lag(bloom_doy, n = 7),
-            lag8_doy = lag(bloom_doy, n = 8),
-            lag9_doy = lag(bloom_doy, n = 9),
+            lag01_doy = lag(bloom_doy, n = 1),
+            lag02_doy = lag(bloom_doy, n = 2),
+            lag03_doy = lag(bloom_doy, n = 3),
+            lag04_doy = lag(bloom_doy, n = 4),
+            lag05_doy = lag(bloom_doy, n = 5),
+            lag06_doy = lag(bloom_doy, n = 6),
+            lag07_doy = lag(bloom_doy, n = 7),
+            lag08_doy = lag(bloom_doy, n = 8),
+            lag09_doy = lag(bloom_doy, n = 9),
             lag10_doy = lag(bloom_doy, n = 10)
           ) |>
           mutate(flag_year = year - lag_year)   |>
           filter(flag_year == 1) |>
-          select(year, bloom_doy, contains("lag"),-c(lag_year, flag_year)) |>
+          select(year, bloom_doy, contains("lag"), -c(lag_year, flag_year)) |>
           pivot_longer(cols = -c(year, bloom_doy)) |>
           mutate(
             name = str_replace_all(name, "_doy", ""),
-            name = str_to_sentence(name),
-            name = factor(name,
-                          levels = str_c("Lag", 1:10))
+            name = str_to_sentence(name)
+            # name = factor(
+            #   name,
+            #   levels = c(
+            #     "Lag01",
+            #     "Lag2",
+            #     "Lag3",
+            #     "Lag4",
+            #     "Lag5",
+            #     "Lag6",
+            #     "Lag7",
+            #     "Lag8",
+            #     "Lag9",
+            #     "Lag10"
+            #   )
+            # )
           ) |>
           filter(!is.na(value))
       }
@@ -78,13 +91,13 @@ lagsDOY <- function(data, country_sel, pal_colors) {
   g1 <-
     data_lags |>
     ggplot(aes(x = value, y = bloom_doy)) +
-    facet_wrap( ~ name, scales = "free", ncol = 10) +
+    facet_wrap(~ name, scales = "free", ncol = 10) +
     geom_density_2d(color = pal_colors[1], size = 0.1) +
     scale_x_log10() +
     scale_y_log10()  +
     labs(
-      x = TeX(r'($\gamma_{t-i}$)'),
-      y = TeX(r'($\gamma_t$)'),
+      x = latex2exp::TeX(r'($\gamma_{t-i}$)'),
+      y = latex2exp::TeX(r'($\gamma_t$)'),
       subtitle = country_sel
     )
   

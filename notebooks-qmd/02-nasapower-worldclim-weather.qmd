@@ -44,7 +44,7 @@ source("../source/r/getWeatherPOWER.R")
 
 ## Variables and temporality
 
-- The meteorological data were obtained with R from the [Prediction of Worldwide Energy Resources (POWER)](https://power.larc.nasa.gov/#resources) project, using the [`nasapower`](https:// docs.ropensci.org/nasapower/index.html) for extraction of time series (from 1981-01-01 to 2024-02-25) with daily frequency of the following variables:
+- The meteorological data were obtained with R from the [Prediction of Worldwide Energy Resources (POWER)](https://power.larc.nasa.gov/#resources) project, using the [`nasapower`](https://docs.ropensci.org/nasapower/) for extraction of time series (from 1981-01-01 to 2024-02-25) with daily frequency of the following variables:
   - Average Earth Surface Temperature (TS)
   - Maximum temperature of the earth's surface (TS_MAX)
   - Minimum land surface temperature (TS_MIN)

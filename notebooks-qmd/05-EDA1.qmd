@@ -426,8 +426,6 @@ $$y = \beta_0 + \beta_1x_1 + \beta_2x_2 + \beta_3x_1x_2 + error$$
 
 A first interesting result of the interactions evaluated is that the behavior differs between countries, for example, the interaction *temperature-precipitation* shows an inverse relationship with *bloom_doy*, but it is not linear in the three countries, in South Korea the relationship tends to be quadratic. We can observe something similar in the *temperature-nitrogen* interaction, in Japan and South Korea it does not exhibit any relationship with the target variable, however, in Switzerland an inverse linear relationship is evident. In the three countries the interaction *temperature-bulk density* is negatively related to the response variable, but in Japan the linear dependence that exists between the variable $y$ and the predictor derived from this interaction is evident.
 
-Later (in document **06-EDA2-FE.qmd**) I make use of *lasso regression* to select predictors and evaluate possible interaction effects that were not represented in this exploratory analysis.
-
 - The trend line (red color) in these graphs was obtained with a generalized additive model ([*GAM*](https://en.wikipedia.org/wiki/Generalized_additive_model)) using [*natural splines*](https://en.wikipedia.org/wiki/Spline_(mathematics)) with two degrees of freedom.
 
 ::: {.panel-tabset}

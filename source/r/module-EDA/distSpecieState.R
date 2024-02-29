@@ -47,7 +47,7 @@ distSpecieStateNPN <- function(data, specie) {
       x = "",
       title = "DOY distribution by state",
       subtitle = glue("Logarithmic scale - {specie}"),
-      caption = "Red line: median\nBlue line: mean (µ)\nGreen band: µ ± 1DE"
+      caption = "Red line: median\nBlue line: mean (µ)\nGreen band: µ ± 1SD"
     ) +
     coord_flip() +
     scale_y_log10()

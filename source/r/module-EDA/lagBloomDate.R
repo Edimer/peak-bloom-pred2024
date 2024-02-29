@@ -132,7 +132,7 @@ lagBloomDate <- function(data, n_lag, country_sel, pal_colors) {
     ) +
     scale_x_log10() +
     labs(
-      title = TeX(
+      title = latex2exp::TeX(
         str_c(r'($Difference\ between\ \gamma_t\ and\ \gamma_{t-p}$)')
       ),
       y = "Count",
