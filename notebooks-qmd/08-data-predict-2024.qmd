@@ -2,7 +2,7 @@
 title: "International Cherry Blossom Prediction Competition"
 subtitle: "Data 2024"
 author: "Edimer David Jaramillo"
-date: "`r lubridate::now()`"
+date: "February 29, 2024"
 lang: en-US
 format:
   html:
@@ -63,11 +63,11 @@ countries <- c("Japan", "Switzerland", "South Korea", "USA-WDC")
 
 # Initial data
 
-- Filtro información mayor al año 1980 para todas las bases de datos.
-- No tengo en cuenta la variable `shrubs` por carencia de datos.
-- Para evitar problemas con las coordenadas redondeo a 4 dígitos la latitud y longitud.
-- Creo una variable de nombre `id_coord` para identificar cada coordenada y facilitar algunos cálculos.
-- En esta ejecución sólo tengo en cuenta las coordenadas de interés para predecir. Para poder ejecutar las funciones sin problema debo asumir una fecha de referencia para extraer resúmenes previos a esa fecha, tal como se explicó en el documento **07-Modeling-FeatEnginer-FeatSelection.qmd**, la fecha que uso en este caso es "2024-03-25", elijo esta fecha para garantizar que voy a tener datos de momentos previos a la floración.
+- Filter information older than the year 1980 for all databases.
+- I do not take into account the `shrubs` variable due to lack of data.
+- To avoid problems with the coordinates, I round the latitude and longitude to 4 digits.
+- I create a variable named `id_coord` to identify each coordinate and facilitate some calculations.
+- In this execution I only take into account the coordinates of interest to predict. In order to execute the functions without problem, I must assume a reference date to extract summaries prior to that date, as explained in the document **07-Modeling-FeatEnginer-FeatSelection.qmd**, the date I use in this case is "2024-03-25", I choose this date to guarantee that I will have data from moments before flowering.
 
 
 ```{r}
@@ -291,7 +291,7 @@ write_parquet(
 
 # Complete data: predict 2024
 
-- Uno las bases de datos `data_predictors_fixed`, `data_predictors_summary_weather[w]M`, `data_predictors_summary_photo[w]M` y `data_predictors_gdd`. Esta es la base de datos final para realizar predicciones del año 2024.
+- I join the databases `data_predictors_fixed`, `data_predictors_summary_weather[w]M`, `data_predictors_summary_photo[w]M` and `data_predictors_gdd`. This is the final database to make predictions for the year 2024.
 
 ```{r}
 #| eval: false

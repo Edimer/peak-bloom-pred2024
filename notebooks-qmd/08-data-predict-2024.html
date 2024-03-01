@@ -4427,11 +4427,11 @@ window.onload = function() {
 <section id="initial-data" class="level1">
 <h1>Initial data</h1>
 <ul>
-<li>Filtro información mayor al año 1980 para todas las bases de datos.</li>
-<li>No tengo en cuenta la variable <code>shrubs</code> por carencia de datos.</li>
-<li>Para evitar problemas con las coordenadas redondeo a 4 dígitos la latitud y longitud.</li>
-<li>Creo una variable de nombre <code>id_coord</code> para identificar cada coordenada y facilitar algunos cálculos.</li>
-<li>En esta ejecución sólo tengo en cuenta las coordenadas de interés para predecir. Para poder ejecutar las funciones sin problema debo asumir una fecha de referencia para extraer resúmenes previos a esa fecha, tal como se explicó en el documento <strong>07-Modeling-FeatEnginer-FeatSelection.qmd</strong>, la fecha que uso en este caso es “2024-03-25”, elijo esta fecha para garantizar que voy a tener datos de momentos previos a la floración.</li>
+<li>Filter information older than the year 1980 for all databases.</li>
+<li>I do not take into account the <code>shrubs</code> variable due to lack of data.</li>
+<li>To avoid problems with the coordinates, I round the latitude and longitude to 4 digits.</li>
+<li>I create a variable named <code>id_coord</code> to identify each coordinate and facilitate some calculations.</li>
+<li>In this execution I only take into account the coordinates of interest to predict. In order to execute the functions without problem, I must assume a reference date to extract summaries prior to that date, as explained in the document <strong>07-Modeling-FeatEnginer-FeatSelection.qmd</strong>, the date I use in this case is “2024-03-25”, I choose this date to guarantee that I will have data from moments before flowering.</li>
 </ul>
 <div class="cell" data-layout-align="center">
 <details class="code-fold">
@@ -4656,7 +4656,7 @@ window.onload = function() {
 <section id="complete-data-predict-2024" class="level1">
 <h1>Complete data: predict 2024</h1>
 <ul>
-<li>Uno las bases de datos <code>data_predictors_fixed</code>, <code>data_predictors_summary_weather[w]M</code>, <code>data_predictors_summary_photo[w]M</code> y <code>data_predictors_gdd</code>. Esta es la base de datos final para realizar predicciones del año 2024.</li>
+<li>I join the databases <code>data_predictors_fixed</code>, <code>data_predictors_summary_weather[w]M</code>, <code>data_predictors_summary_photo[w]M</code> and <code>data_predictors_gdd</code>. This is the final database to make predictions for the year 2024.</li>
 </ul>
 <div class="cell" data-layout-align="center">
 <details class="code-fold">
@@ -5177,7 +5177,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> &quot;International Cherry Blossom Prediction Competition&quot;</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> &quot;Data 2024&quot;</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="an">author:</span><span class="co"> &quot;Edimer David Jaramillo&quot;</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> &quot;`r lubridate::now()`&quot;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> &quot;February 29, 2024&quot;</span></span>
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="an">lang:</span><span class="co"> en-US</span></span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
 <span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
@@ -5238,11 +5238,11 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 <span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a><span class="fu"># Initial data</span></span>
 <span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Filtro información mayor al año 1980 para todas las bases de datos.</span>
-<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>No tengo en cuenta la variable <span class="in">`shrubs`</span> por carencia de datos.</span>
-<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Para evitar problemas con las coordenadas redondeo a 4 dígitos la latitud y longitud.</span>
-<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Creo una variable de nombre <span class="in">`id_coord`</span> para identificar cada coordenada y facilitar algunos cálculos.</span>
-<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>En esta ejecución sólo tengo en cuenta las coordenadas de interés para predecir. Para poder ejecutar las funciones sin problema debo asumir una fecha de referencia para extraer resúmenes previos a esa fecha, tal como se explicó en el documento **07-Modeling-FeatEnginer-FeatSelection.qmd**, la fecha que uso en este caso es &quot;2024-03-25&quot;, elijo esta fecha para garantizar que voy a tener datos de momentos previos a la floración.</span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Filter information older than the year 1980 for all databases.</span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>I do not take into account the <span class="in">`shrubs`</span> variable due to lack of data.</span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>To avoid problems with the coordinates, I round the latitude and longitude to 4 digits.</span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>I create a variable named <span class="in">`id_coord`</span> to identify each coordinate and facilitate some calculations.</span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>In this execution I only take into account the coordinates of interest to predict. In order to execute the functions without problem, I must assume a reference date to extract summaries prior to that date, as explained in the document **07-Modeling-FeatEnginer-FeatSelection.qmd**, the date I use in this case is &quot;2024-03-25&quot;, I choose this date to guarantee that I will have data from moments before flowering.</span>
 <span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
@@ -5466,7 +5466,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 <span id="cb4-297"><a href="#cb4-297" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-298"><a href="#cb4-298" aria-hidden="true" tabindex="-1"></a><span class="fu"># Complete data: predict 2024</span></span>
 <span id="cb4-299"><a href="#cb4-299" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-300"><a href="#cb4-300" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Uno las bases de datos <span class="in">`data_predictors_fixed`</span>, <span class="in">`data_predictors_summary_weather[w]M`</span>, <span class="in">`data_predictors_summary_photo[w]M`</span> y <span class="in">`data_predictors_gdd`</span>. Esta es la base de datos final para realizar predicciones del año 2024.</span>
+<span id="cb4-300"><a href="#cb4-300" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>I join the databases <span class="in">`data_predictors_fixed`</span>, <span class="in">`data_predictors_summary_weather[w]M`</span>, <span class="in">`data_predictors_summary_photo[w]M`</span> and <span class="in">`data_predictors_gdd`</span>. This is the final database to make predictions for the year 2024.</span>
 <span id="cb4-301"><a href="#cb4-301" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-304"><a href="#cb4-304" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
 <span id="cb4-305"><a href="#cb4-305" aria-hidden="true" tabindex="-1"></a><span class="co">#| eval: false</span></span>
